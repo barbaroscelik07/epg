@@ -1,0 +1,10 @@
+name = "epg"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[[kv_namespaces]]
+binding = "EPG"
+id = "KV_ID_BURAYA"
+
+[observability]
+enabled = true
