@@ -47,7 +47,7 @@ jobs:
           curl -sS -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
             -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
             -H "Content-Type: application/json" \
-            --data '{"subdomain":"barbaroscelik"}'
+            --data '{"subdomain":"epgdeposu"}'
 
       - name: Worker'i yayinla
         run: npx --yes wrangler@4 deploy
