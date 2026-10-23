@@ -30,6 +30,24 @@ jobs:
           git clone --depth 1 https://github.com/iptv-org/epg.git epg-tool
           cd epg-tool && npm ci --no-audit --no-fund
 
+      - name: Turksat eksik ara sertifikasini tamamla
+        run: |
+          set +e
+          HOST=www.turksatkablo.com.tr
+          echo | timeout 30 openssl s_client -connect $HOST:443 -servername $HOST 2>/dev/null | openssl x509 > leaf.pem
+          URL=$(openssl x509 -in leaf.pem -noout -text 2>/dev/null | grep -oP 'CA Issuers - URI:\K\S+' | head -1)
+          echo "Ara sertifika adresi: ${URL:-bulunamadi}"
+          if [ -n "$URL" ] && curl -fsSL --max-time 30 "$URL" -o inter.raw; then
+            openssl x509 -inform DER -in inter.raw -out inter.pem 2>/dev/null \
+              || openssl x509 -in inter.raw -out inter.pem 2>/dev/null \
+              || openssl pkcs7 -inform DER -in inter.raw -print_certs -out inter.pem 2>/dev/null
+            if openssl x509 -in inter.pem -noout -subject 2>/dev/null; then
+              echo "NODE_EXTRA_CA_CERTS=$PWD/inter.pem" >> "$GITHUB_ENV"
+              echo "Ara sertifika eklendi."
+            fi
+          fi
+          exit 0
+
       - name: EPG verisini topla (3 gun, tum kaynaklar)
         working-directory: epg-tool
         run: |
@@ -39,7 +57,7 @@ jobs:
             --output="../guides/{site}.xml" \
             --days=3 \
             --maxConnections=3 \
-            --timeout=20000 2>&1 | tee ../grab.log || true
+            --timeout=60000 2>&1 | tee ../grab.log || true
 
       - name: Kaynaklari birlestir ve rapor yaz
         run: python3 birlestir.py
