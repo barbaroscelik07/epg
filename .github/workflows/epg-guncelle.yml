@@ -58,7 +58,8 @@ jobs:
               with open(ad, 'w', encoding='utf-8') as f:
                   f.write('<?xml version="1.0" encoding="UTF-8"?>\n<channels>\n' + '\n'.join(secim) + '\n</channels>\n')
           tv = [s for s in kanal if 'site="tvplus.com.tr"' in s]
-          diger = [s for s in kanal if 'site="tvplus.com.tr"' not in s and 'site="turksatkablo.com.tr"' not in s]
+          ozel = ('site="tvplus.com.tr"', 'site="turksatkablo.com.tr"', 'site="digiturk.com.tr"')
+          diger = [s for s in kanal if not any(o in s for o in ozel)]
           yaz('tvplus-channels.xml', tv); yaz('diger-channels.xml', diger)
           print('tvplus:', len(tv), 'diger:', len(diger))
           EOF
@@ -87,6 +88,9 @@ jobs:
 
       - name: Turksat verisini topla (ad ile eslestirme)
         run: python3 turksat.py || true
+
+      - name: Digiturk verisini oku (Android box'tan)
+        run: python3 digiturk.py || true
 
       - name: Kaynaklari birlestir ve rapor yaz
         run: python3 birlestir.py
