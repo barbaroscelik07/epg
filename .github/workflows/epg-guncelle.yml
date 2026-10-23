@@ -60,6 +60,9 @@ jobs:
             --maxConnections=3 \
             --timeout=60000 2>&1 | tee ../grab.log || true
 
+      - name: Turksat verisini topla (ad ile eslestirme)
+        run: python3 turksat.py || true
+
       - name: Kaynaklari birlestir ve rapor yaz
         run: python3 birlestir.py
 
