@@ -1,0 +1,78 @@
+name: EPG guncelle
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Gunde 2 kez: 05:00 ve 17:00 (Istanbul saati)
+    - cron: "0 2,14 * * *"
+
+concurrency:
+  group: epg-guncelle
+  cancel-in-progress: false
+
+jobs:
+  guncelle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      CF_KV_ID: ${{ secrets.CF_KV_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: iptv-org/epg aracini indir
+        run: |
+          git clone --depth 1 https://github.com/iptv-org/epg.git epg-tool
+          cd epg-tool && npm ci --no-audit --no-fund
+
+      - name: EPG verisini topla (3 gun)
+        working-directory: epg-tool
+        run: |
+          npm run grab --- \
+            --channels=../channels.xml \
+            --output=../guide.xml \
+            --days=3 \
+            --maxConnections=3 \
+            --timeout=30000
+
+      - name: Sonucu kontrol et ve rapor yaz
+        run: |
+          python3 - <<'EOF'
+          import os, sys, xml.etree.ElementTree as ET
+          size = os.path.getsize("guide.xml")
+          root = ET.parse("guide.xml").getroot()
+          ch = ET.parse("channels.xml").getroot().findall("channel")
+          counts = {}
+          for p in root.findall("programme"):
+              counts[p.get("channel")] = counts.get(p.get("channel"), 0) + 1
+          bos = [c.text for c in ch if counts.get(c.get("xmltv_id"), 0) == 0]
+          toplam = sum(counts.values())
+          rapor = [
+              "## EPG raporu",
+              f"- Dosya boyutu: {size/1024/1024:.1f} MB",
+              f"- Toplam program: {toplam}",
+              f"- Verisi gelen kanal: {len(ch)-len(bos)} / {len(ch)}",
+              "",
+              "### Verisi gelmeyen kanallar",
+          ] + ([f"- {b}" for b in bos] or ["- Yok"])
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write("\n".join(rapor) + "\n")
+          print("\n".join(rapor))
+          if toplam == 0:
+              sys.exit("Hic program gelmedi, KV guncellenmeyecek.")
+          if size > 24 * 1024 * 1024:
+              sys.exit("Dosya 24 MB'den buyuk, KV siniri asilabilir.")
+          EOF
+
+      - name: KV'ye yukle
+        run: npx --yes wrangler@4 kv key put "guide.xml" --path=guide.xml --namespace-id="${CF_KV_ID}" --remote
+
+      - name: Worker'i yayinla
+        run: |
+          sed -i "s/KV_ID_BURAYA/${CF_KV_ID}/" wrangler.toml
+          npx --yes wrangler@4 deploy
