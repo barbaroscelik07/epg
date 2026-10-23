@@ -6,7 +6,7 @@ export default {
     if (url.pathname.startsWith("/yukle/")) {
       if (request.method !== "PUT") return new Response("Yalnizca PUT", { status: 405 });
       const anahtar = url.pathname.slice("/yukle/".length);
-      if (!/^(digiturk|dsmart)-\d{4}-\d{2}-\d{2}$/.test(anahtar)) {
+      if (!/^(digiturk|dsmart|tivibu)-\d{4}-\d{2}-\d{2}$/.test(anahtar)) {
         return new Response("Gecersiz anahtar", { status: 400 });
       }
       const sifre = await env.EPG.get("yukleme-sifresi");
