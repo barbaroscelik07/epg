@@ -43,6 +43,11 @@ for x in sira:
     if c is None:
         c = ET.Element('channel', {'id': x})
         ET.SubElement(c, 'display-name', {'lang': 'tr'}).text = ad[x]
+    if c.find('icon') is None:   # logo başka kaynağın kaydında varsa onu kullan
+        for s in veri:
+            diger = veri[s]['channels'].get(x)
+            if diger is not None and diger.find('icon') is not None:
+                c.append(diger.find('icon')); break
     cikti.append(c)
 toplam = 0
 for x in sira:
