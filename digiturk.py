@@ -57,8 +57,22 @@ def coz(veri, gun):
             sonuc.append((sid, bas, bas + timedelta(minutes=max(sure, 1)), baslik, aciklama))
     return sonuc
 
+def kanal_listesi(veri):
+    """Sayfadaki kanallar: {site_id: kanal adı}"""
+    if veri[:2] == b'\x1f\x8b':
+        veri = gzip.decompress(veri)
+    metin = veri.decode('utf-8', errors='replace')
+    kanallar_sayfa = {}
+    for blok in metin.split('channelContent')[1:]:
+        ad = re.search(r'id="channelID"[^>]*value="([^"]*)"', blok[:1500])
+        sid = re.search(r"getDetail\('[^']*',\s*(\d+)\)", blok)
+        if ad and sid:
+            kanallar_sayfa.setdefault(sid.group(1), html.unescape(ad.group(1)).strip())
+    return kanallar_sayfa
+
 bugun = datetime.now(TZ).date()
 programlar = {}   # xmltv_id -> {başlangıç: (bitiş, başlık, açıklama)}
+sayfa_kanallari = {}
 for g in range(-1, 7):
     gun = bugun + timedelta(days=g)
     anahtar = f'digiturk-{gun:%Y-%m-%d}'
@@ -68,6 +82,8 @@ for g in range(-1, 7):
         print(f'{anahtar}: okunamadi ({e})'); continue
     if not veri:
         print(f'{anahtar}: yok'); continue
+    if not sayfa_kanallari:
+        sayfa_kanallari = kanal_listesi(veri)
     say = 0
     for sid, bas, bit, baslik, aciklama in coz(veri, gun):
         xid = site_id_to_xid.get(sid)
@@ -104,3 +120,10 @@ print(f'Digiturk toplam: {toplam} program, {len(programlar)} / {len(kanallar)} k
 eksik = [c.text for c in kanallar if c.get('xmltv_id') not in programlar]
 if eksik:
     print('Verisi olmayan Digiturk kanallari:', ', '.join(eksik))
+
+# Digiturk sayfasında olup listemizde olmayan kanallar (yeni kanal eklemek için)
+listede = set(site_id_to_xid)
+yeni = sorted((ad, sid) for sid, ad in sayfa_kanallari.items() if sid not in listede)
+print(f'\nDigiturk sayfasindaki kanal sayisi: {len(sayfa_kanallari)}, listemizde olmayan: {len(yeni)}')
+for ad, sid in yeni:
+    print(f'  {sid}: {ad}')
