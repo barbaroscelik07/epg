@@ -4,7 +4,7 @@ import os, re, sys, glob, collections
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
-ONCELIK = ['tvplus.com.tr', 'digiturk.com.tr', 'dsmart.com.tr', 'turksatkablo.com.tr', 'ipko.tv', 'tvprofil.com']
+ONCELIK = ['tvplus.com.tr', 'digiturk.com.tr', 'dsmart.com.tr', 'turksatkablo.com.tr', 'ipko.tv', 'tivibu.com.tr', 'tvprofil.com']
 
 kanallar = ET.parse('channels.xml').getroot().findall('channel')
 sira, ad = [], {}

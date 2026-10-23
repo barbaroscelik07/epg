@@ -70,6 +70,42 @@ for g in 0 1 2 3 4 5 6; do
 done
 echo "D-Smart: $ds_basarili/7 gun yuklendi"
 
+# ---- Tivibu (web sitesi; kanal listesi GitHub'daki channels.xml'den) ----
+tv_basarili=0
+KANALLAR=$(curl -fsSL --max-time 60 "https://raw.githubusercontent.com/barbaroscelik07/epg/main/channels.xml" \
+  | grep -o 'site="tivibu\.com\.tr"[^>]*site_id="[0-9]*"' | grep -o '[0-9]*"$' | tr -d '"' | sort -u)
+if [ -n "$KANALLAR" ]; then
+  curl -s --compressed --max-time 60 -o "$TMP/canli.html" -A "$UA" -c "$TMP/jar" -b "$TMP/jar" \
+    "https://www.tivibu.com.tr/canli-tv"
+  TOKEN=$(grep -o '<input[^>]*CSRF-TOKEN-TVBUDNBX[^>]*>' "$TMP/canli.html" | sed -n 's/.*value="\([^"]*\)".*/\1/p' | head -1)
+  bas=$(date +%Y.%m.%d); bit=$(date -d '+6 day' +%Y.%m.%d)
+  dosya="$TMP/tivibu.txt"; : > "$dosya"; adet=0; kanal_say=0
+  for k in $KANALLAR; do
+    kanal_say=$((kanal_say + 1))
+    curl -s --compressed --max-time 60 -o "$TMP/tv.json" -A "$UA" -c "$TMP/jar" -b "$TMP/jar" \
+      -H "X-Requested-With: XMLHttpRequest" -H "RequestVerificationToken: $TOKEN" \
+      -H "Origin: https://www.tivibu.com.tr" -H "Referer: https://www.tivibu.com.tr/canli-tv" \
+      -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" \
+      --data "channelCode=ch${k}&channelDateBegin=${bas}+00%3A00%3A00&channelDateEnd=${bit}+23%3A59%3A59" \
+      "https://www.tivibu.com.tr/Channel/GetPrevueList"
+    if grep -q '"prevueName"' "$TMP/tv.json" 2>/dev/null; then
+      printf '%s\t' "$k" >> "$dosya"; tr -d '\r\n' < "$TMP/tv.json" >> "$dosya"; echo >> "$dosya"
+      adet=$((adet + 1))
+    fi
+    sleep 1
+  done
+  if [ "$adet" -gt 0 ]; then
+    yukle="$dosya"
+    if command -v gzip >/dev/null 2>&1 && gzip -c "$dosya" > "$dosya.gz"; then yukle="$dosya.gz"; fi
+    sonuc=$(curl -s --max-time 120 -X PUT -H "X-Yukleme-Sifresi: $SIFRE" \
+      --data-binary @"$yukle" -w " [%{http_code}]" "$WORKER/yukle/tivibu-$(date +%Y-%m-%d)")
+    echo "Tivibu: $adet/$kanal_say kanal -> $sonuc"
+    case "$sonuc" in *"[200]"*) tv_basarili=1 ;; esac
+  else
+    echo "Tivibu: $kanal_say kanalin hicbirinden veri gelmedi (anahtar: $( [ -n "$TOKEN" ] && echo var || echo yok))"
+  fi
+fi
+
 rm -rf "$TMP"
-if [ $((basarili + ds_basarili)) -gt 0 ]; then date +%s > "$HOME/.epg/son"; else tekrar_dene; fi
+if [ $((basarili + ds_basarili + tv_basarili)) -gt 0 ]; then date +%s > "$HOME/.epg/son"; else tekrar_dene; fi
 echo "Tamam."
