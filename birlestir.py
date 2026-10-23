@@ -2,6 +2,7 @@
 # kanal başına en çok program veren kaynak seçilir (eşitlikte öncelik sırası).
 import os, re, sys, glob, collections
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 
 ONCELIK = ['tvplus.com.tr', 'digiturk.com.tr', 'dsmart.com.tr', 'turksatkablo.com.tr', 'ipko.tv', 'tvprofil.com']
 
@@ -27,14 +28,49 @@ for yol in glob.glob('guides/*.xml'):
         d['programs'][p.get('channel')].append(p)
     veri[site] = d
 
-secim, bos = {}, []
+# KV'deki mevcut EPG'yi "onceki" veri olarak al (kaynak geçici düşerse kullanılır)
+def onceki_veri():
+    yol = os.environ.get('ONCEKI_TEST')          # yerel test için
+    try:
+        if yol:
+            ham = open(yol, 'rb').read()
+        else:
+            import subprocess
+            r = subprocess.run(['npx', '--yes', 'wrangler@4', 'kv', 'key', 'get', 'guide.xml',
+                                f'--namespace-id={os.environ["CF_KV_ID"]}', '--remote'],
+                               capture_output=True, timeout=180)
+            ham = r.stdout
+        bas = ham.find(b'<?xml')
+        if bas < 0: bas = ham.find(b'<tv')
+        kok = ET.fromstring(ham[bas:])
+    except Exception as e:
+        print(f'Onceki EPG alinamadi: {e}'); return None
+    simdi = datetime.now(timezone.utc)
+    d = {'channels': {}, 'programs': collections.defaultdict(list)}
+    for c in kok.findall('channel'):
+        d['channels'][c.get('id')] = c
+    for p in kok.findall('programme'):
+        try:
+            if datetime.strptime(p.get('stop'), '%Y%m%d%H%M%S %z') > simdi:
+                d['programs'][p.get('channel')].append(p)
+        except (TypeError, ValueError):
+            pass
+    return d
+
+onceki = onceki_veri()
+
+secim, bos, korunan = {}, [], []
 for x in sira:
     adaylar = [(len(veri[s]['programs'].get(x, [])), -ONCELIK.index(s) if s in ONCELIK else -99, s) for s in veri]
     adaylar = [a for a in adaylar if a[0] > 0]
     if adaylar:
         secim[x] = max(adaylar)[2]
+    elif onceki and onceki['programs'].get(x):
+        secim[x] = 'onceki'; korunan.append(ad[x])
     else:
         bos.append(ad[x])
+if onceki:
+    veri['onceki'] = onceki
 
 cikti = ET.Element('tv', {'generator-info-name': 'epgdeposu'})
 for x in sira:
@@ -85,6 +121,7 @@ for s in ONCELIK:
         rapor.append(f'- {s}: {istek[s]} istek, {bos_istek[s]} bos, {kaynak_sayi[s]} kanalda secildi')
         for msg, n in hata[s].most_common(3):
             rapor.append(f'  - Hata ({n}x): {msg}')
+rapor += ['', f'### Onceki veriden korunan kanallar ({len(korunan)})'] + ([f'- {k}' for k in korunan] or ['- Yok'])
 rapor += ['', '### Verisi gelmeyen kanallar'] + ([f'- {b}' for b in bos] or ['- Yok'])
 
 metin = '\n'.join(rapor) + '\n'
