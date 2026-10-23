@@ -48,26 +48,13 @@ jobs:
           fi
           exit 0
 
-      - name: Turksat yanit testi (gecici)
-        run: |
-          set +e
-          cat /etc/ssl/certs/ca-certificates.crt inter.pem > bundle.pem 2>/dev/null
-          U="https://www.turksatkablo.com.tr/userUpload/EPG/$(TZ=Europe/Istanbul date +%d).json"
-          echo "Adres: $U"
-          curl -sS --cacert bundle.pem --max-time 60 -D basliklar.txt -o tk.json "$U"
-          head -12 basliklar.txt
-          echo "Boyut: $(wc -c < tk.json) bayt"
-          echo "Ilk 16 bayt (hex):"; od -An -tx1 -N16 tk.json
-          echo "Ilk 300 karakter:"; head -c 300 tk.json; echo
-          python3 -c "import json;d=json.load(open('tk.json',encoding='utf-8-sig'));print('JSON gecerli, kanal sayisi:',len(d.get('k',[])))"
-          exit 0
-
-      - name: EPG verisini topla (3 gun, tum kaynaklar)
+      - name: EPG verisini topla (3 gun, Turksat haric tum kaynaklar)
         working-directory: epg-tool
         run: |
           mkdir -p ../guides
+          grep -v 'site="turksatkablo.com.tr"' ../channels.xml > ../grab-channels.xml
           npm run grab --- \
-            --channels=../channels.xml \
+            --channels=../grab-channels.xml \
             --output="../guides/{site}.xml" \
             --days=3 \
             --maxConnections=3 \
