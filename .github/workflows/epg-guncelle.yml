@@ -48,17 +48,42 @@ jobs:
           fi
           exit 0
 
-      - name: EPG verisini topla (3 gun, Turksat haric tum kaynaklar)
+      - name: Kanal listesini kaynaklara ayir
+        run: |
+          python3 - <<'EOF'
+          import re
+          satirlar = open('channels.xml', encoding='utf-8').read().splitlines()
+          kanal = [s for s in satirlar if '<channel ' in s]
+          def yaz(ad, secim):
+              with open(ad, 'w', encoding='utf-8') as f:
+                  f.write('<?xml version="1.0" encoding="UTF-8"?>\n<channels>\n' + '\n'.join(secim) + '\n</channels>\n')
+          tv = [s for s in kanal if 'site="tvplus.com.tr"' in s]
+          diger = [s for s in kanal if 'site="tvplus.com.tr"' not in s and 'site="turksatkablo.com.tr"' not in s]
+          yaz('tvplus-channels.xml', tv); yaz('diger-channels.xml', diger)
+          print('tvplus:', len(tv), 'diger:', len(diger))
+          EOF
+
+      - name: EPG verisini topla - tvplus (tek tek, aralikli)
         working-directory: epg-tool
         run: |
           mkdir -p ../guides
-          grep -v 'site="turksatkablo.com.tr"' ../channels.xml > ../grab-channels.xml
           npm run grab --- \
-            --channels=../grab-channels.xml \
+            --channels=../tvplus-channels.xml \
+            --output="../guides/{site}.xml" \
+            --days=3 \
+            --maxConnections=1 \
+            --delay=1500 \
+            --timeout=60000 2>&1 | tee ../grab.log || true
+
+      - name: EPG verisini topla - diger kaynaklar
+        working-directory: epg-tool
+        run: |
+          npm run grab --- \
+            --channels=../diger-channels.xml \
             --output="../guides/{site}.xml" \
             --days=3 \
             --maxConnections=3 \
-            --timeout=60000 2>&1 | tee ../grab.log || true
+            --timeout=60000 2>&1 | tee -a ../grab.log || true
 
       - name: Turksat verisini topla (ad ile eslestirme)
         run: python3 turksat.py || true
