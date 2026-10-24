@@ -1,0 +1,31 @@
+name: Alt alan adini degistir
+
+on:
+  workflow_dispatch:
+    inputs:
+      isim:
+        description: "Yeni workers.dev alt alan adi (kucuk harf, rakam, tire)"
+        required: true
+        default: "epgdeposu"
+
+jobs:
+  degistir:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      ISIM: ${{ inputs.isim }}
+    steps:
+      - name: Mevcut alt alan adi
+        run: |
+          curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | python3 -m json.tool
+
+      - name: Yeni alt alan adini kaydet
+        run: |
+          case "$ISIM" in *[!a-z0-9-]*|"") echo "HATA: isim sadece kucuk harf, rakam ve tire icerebilir"; exit 1 ;; esac
+          curl -sS -X PUT "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/subdomain" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "{\"subdomain\":\"${ISIM}\"}" | tee sonuc.json | python3 -m json.tool
+          python3 -c "import json,sys; d=json.load(open('sonuc.json')); print('\nSONUC:', 'BASARILI - yeni adres: https://epg.' + sys.argv[1] + '.workers.dev' if d.get('success') else 'BASARISIZ - yukaridaki hata mesajina bakin')" "$ISIM"
