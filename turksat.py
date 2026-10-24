@@ -1,6 +1,6 @@
 # Türksat Kablo EPG çekici: kanalları "n" (kanal adı) alanıyla eşleştirir.
 # channels.xml'deki turksatkablo.com.tr satırlarında site_id = Türksat'taki kanal adı.
-import os, sys, json, ssl, urllib.request, email.utils
+import os, sys, json, ssl, time, urllib.request, urllib.error, email.utils
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -22,9 +22,18 @@ def indir(tarih):
         return json.load(open(os.path.join(TEST_DIR, ad), encoding='utf-8-sig')), None
     req = urllib.request.Request(f'https://www.turksatkablo.com.tr/userUpload/EPG/{ad}',
                                  headers={'User-Agent': 'Mozilla/5.0'})
-    with urllib.request.urlopen(req, context=ctx, timeout=60) as r:
-        lm = r.headers.get('Last-Modified')
-        return json.loads(r.read().decode('utf-8-sig')), lm
+    for deneme in range(1, 4):      # geçici ağ/DNS hatalarında 3 kez, 30 sn arayla dene
+        try:
+            with urllib.request.urlopen(req, context=ctx, timeout=60) as r:
+                lm = r.headers.get('Last-Modified')
+                return json.loads(r.read().decode('utf-8-sig')), lm
+        except urllib.error.HTTPError:
+            raise                       # sunucu cevap verdi (ör. 404): tekrar denemenin anlamı yok
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            if deneme == 3:
+                raise
+            print(f'{ad}: baglanti hatasi ({e}), {deneme}. deneme - 30 sn sonra tekrar')
+            time.sleep(30)
 
 def zaman(gun, saat):
     h, m = map(int, saat.split(':'))
