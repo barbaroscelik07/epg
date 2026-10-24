@@ -34,7 +34,11 @@ jobs:
         run: |
           set +e
           HOST=www.turksatkablo.com.tr
-          echo | timeout 30 openssl s_client -connect $HOST:443 -servername $HOST 2>/dev/null | openssl x509 > leaf.pem
+          for deneme in 1 2 3; do
+            echo | timeout 30 openssl s_client -connect $HOST:443 -servername $HOST 2>/dev/null | openssl x509 > leaf.pem 2>/dev/null
+            [ -s leaf.pem ] && break
+            echo "Turksat'a baglanilamadi ($deneme. deneme), 30 sn sonra tekrar"; sleep 30
+          done
           URL=$(openssl x509 -in leaf.pem -noout -text 2>/dev/null | grep -oP 'CA Issuers - URI:\K\S+' | head -1)
           echo "Ara sertifika adresi: ${URL:-bulunamadi}"
           if [ -n "$URL" ] && curl -fsSL --max-time 30 "$URL" -o inter.raw; then
