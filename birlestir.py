@@ -97,6 +97,10 @@ for x in sira:
         cikti.append(p); toplam += 1
 ET.ElementTree(cikti).write('guide.xml', encoding='utf-8', xml_declaration=True)
 boyut = os.path.getsize('guide.xml')
+import gzip
+with open('guide.xml', 'rb') as f, open('guide.xml.gz', 'wb') as g:
+    g.write(gzip.compress(f.read(), compresslevel=9, mtime=0))
+gz_boyut = os.path.getsize('guide.xml.gz')
 
 # Log'dan kaynak bazında hata özeti
 istek = collections.Counter(); bos_istek = collections.Counter(); hata = collections.defaultdict(collections.Counter)
@@ -115,7 +119,7 @@ if os.path.exists('grab.log'):
 kaynak_sayi = collections.Counter(secim.values())
 rapor = [
     '## EPG raporu',
-    f'- Dosya boyutu: {boyut/1024/1024:.1f} MB',
+    f'- Dosya boyutu: {boyut/1024/1024:.1f} MB (gzip: {gz_boyut/1024/1024:.1f} MB)',
     f'- Toplam program: {toplam}',
     f'- Verisi gelen kanal: {len(secim)} / {len(sira)}',
     '',
