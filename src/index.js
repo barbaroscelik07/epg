@@ -21,6 +21,18 @@ export default {
       return new Response(`Kaydedildi: ${anahtar} (${govde.byteLength} bayt)`);
     }
 
+    // Sıkıştırılmış EPG: adres .gz ile bitiyorsa
+    if (url.pathname.endsWith(".gz")) {
+      const gz = await env.EPG.get("guide.xml.gz", { type: "stream" });
+      if (!gz) return new Response("EPG dosyasi bulunamadi", { status: 404 });
+      return new Response(gz, {
+        headers: {
+          "content-type": "application/gzip",
+          "content-disposition": 'attachment; filename="guide.xml.gz"',
+        },
+      });
+    }
+
     const dosya = await env.EPG.get("guide.xml", { type: "stream" });
     if (!dosya) {
       return new Response("EPG dosyasi bulunamadi", { status: 404 });
