@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/sh
 # Digiturk 7 gunluk yayin akisini indirip EPG Worker'ina yukler (Android box / Termux)
-WORKER="https://epg.barbaroscelik.workers.dev"
+WORKER="https://epg.epgdeposu.workers.dev"
 ARALIK=21600
 SIFRE=$(cat "$HOME/.epg/sifre")
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
