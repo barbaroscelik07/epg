@@ -106,7 +106,9 @@ jobs:
         run: python3 birlestir.py
 
       - name: KV'ye yukle
-        run: npx --yes wrangler@4 kv key put "guide.xml" --path=guide.xml --namespace-id="${CF_KV_ID}" --remote
+        run: |
+          npx --yes wrangler@4 kv key put "guide.xml" --path=guide.xml --namespace-id="${CF_KV_ID}" --remote
+          npx --yes wrangler@4 kv key put "guide.xml.gz" --path=guide.xml.gz --namespace-id="${CF_KV_ID}" --remote
 
       - name: Worker'i yayinla
         run: |
