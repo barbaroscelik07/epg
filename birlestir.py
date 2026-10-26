@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 
 ONCELIK = ['tvplus.com.tr', 'digiturk.com.tr', 'dsmart.com.tr', 'turksatkablo.com.tr', 'ipko.tv', 'tivibu.com.tr', 'tvprofil.com']
+YABANCI = {'ipko.tv', 'tvprofil.com'}   # program adları İngilizce gelebilir
 
 kanallar = ET.parse('channels.xml').getroot().findall('channel')
 sira, ad = [], {}
@@ -61,10 +62,12 @@ onceki = onceki_veri()
 
 secim, bos, korunan = {}, [], []
 for x in sira:
-    adaylar = [(len(veri[s]['programs'].get(x, [])), -ONCELIK.index(s) if s in ONCELIK else -99, s) for s in veri]
-    adaylar = [a for a in adaylar if a[0] > 0]
+    # Türk kaynaklarından veri varsa her zaman onlar seçilir; ipko/tvprofil yalnızca başka kaynak yoksa
+    adaylar = [(0 if s in YABANCI else 1, len(veri[s]['programs'].get(x, [])),
+                -ONCELIK.index(s) if s in ONCELIK else -99, s) for s in veri]
+    adaylar = [a for a in adaylar if a[1] > 0]
     if adaylar:
-        secim[x] = max(adaylar)[2]
+        secim[x] = max(adaylar)[3]
     elif onceki and onceki['programs'].get(x):
         secim[x] = 'onceki'; korunan.append(ad[x])
     else:

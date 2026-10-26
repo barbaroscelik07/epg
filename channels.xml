@@ -537,4 +537,18 @@
   <channel site="digiturk.com.tr" lang="tr" xmltv_id="MCMTop.fr" site_id="60">MCM Top</channel>
   <channel site="turksatkablo.com.tr" lang="tr" xmltv_id="ClassicalHarmony.uk" site_id="Classical Harmony">Classical Harmony</channel>
   <channel site="turksatkablo.com.tr" lang="tr" xmltv_id="TraceUrban.fr" site_id="Trace Urban">Trace Urban</channel>
+  <!-- Eklenen kanallar (2026-10) -->
+  <channel site="dsmart.com.tr" lang="tr" xmltv_id="TRT4K.tr" site_id="59dcbee1cfef0b4d80a49650">TRT 4K</channel>
+  <channel site="dsmart.com.tr" lang="tr" xmltv_id="EuroD.tr" site_id="59dcbfdccfef0b4d80a4974a">Euro D</channel>
+  <channel site="ipko.tv" lang="tr" xmltv_id="EuroD.tr" site_id="euro-d">Euro D</channel>
+  <channel site="ipko.tv" lang="tr" xmltv_id="EuroStar.tr" site_id="euro-star">Eurostar</channel>
+  <channel site="ipko.tv" lang="tr" xmltv_id="ShowMax.tr" site_id="show-maxx">Show Max</channel>
+  <channel site="ipko.tv" lang="tr" xmltv_id="ShowTurk.tr" site_id="show-turk">Show Türk</channel>
+  <channel site="ipko.tv" lang="tr" xmltv_id="TV8int.tr" site_id="tv8-int">TV8 Int</channel>
+  <channel site="ipko.tv" lang="tr" xmltv_id="TGRTEurope.tr" site_id="tgrt-eu">TGRT EU</channel>
+  <channel site="dsmart.com.tr" lang="tr" xmltv_id="HistoryChannel.tr" site_id="61a408d7cfef0b1593ed2812">History</channel>
+  <channel site="dsmart.com.tr" lang="tr" xmltv_id="NatureEscape.tr" site_id="59dca29fcfef0b4d80a47a61">Nature Escape</channel>
+  <channel site="dsmart.com.tr" lang="tr" xmltv_id="RTInternational.ru" site_id="683d6eafcfef0b3744e79132">RT International</channel>
+  <channel site="turksatkablo.com.tr" lang="tr" xmltv_id="AzTV.az" site_id="Az TV">Az TV</channel>
+  <channel site="turksatkablo.com.tr" lang="tr" xmltv_id="KanalB.tr" site_id="Kanal B">Kanal B</channel>
 </channels>
