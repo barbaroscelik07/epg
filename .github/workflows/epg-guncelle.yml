@@ -112,5 +112,7 @@ jobs:
 
       - name: Worker'i yayinla
         run: |
+          mkdir -p public/logo
+          cp logos/*.png public/logo/ 2>/dev/null || true
           sed -i "s/KV_ID_BURAYA/${CF_KV_ID}/" wrangler.toml
           npx --yes wrangler@4 deploy
