@@ -30,21 +30,27 @@ for yol in glob.glob('guides/*.xml'):
     veri[site] = d
 
 # KV'deki mevcut EPG'yi "onceki" veri olarak al (kaynak geçici düşerse kullanılır)
+onceki_durum = 'okunamadi'
+
 def onceki_veri():
+    global onceki_durum
     yol = os.environ.get('ONCEKI_TEST')          # yerel test için
     try:
         if yol:
             ham = open(yol, 'rb').read()
-        else:
-            import subprocess
-            r = subprocess.run(['npx', '--yes', 'wrangler@4', 'kv', 'key', 'get', 'guide.xml',
-                                f'--namespace-id={os.environ["CF_KV_ID"]}', '--remote'],
-                               capture_output=True, timeout=180)
-            ham = r.stdout
+        else:   # Cloudflare KV'den doğrudan (REST API)
+            import urllib.request
+            url = ('https://api.cloudflare.com/client/v4/accounts/{}/storage/kv/namespaces/{}/values/guide.xml'
+                   .format(os.environ['CLOUDFLARE_ACCOUNT_ID'], os.environ['CF_KV_ID']))
+            req = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['CLOUDFLARE_API_TOKEN']})
+            with urllib.request.urlopen(req, timeout=120) as r:
+                ham = r.read()
         bas = ham.find(b'<?xml')
         if bas < 0: bas = ham.find(b'<tv')
-        kok = ET.fromstring(ham[bas:])
+        son = ham.rfind(b'</tv>')
+        kok = ET.fromstring(ham[bas:son + 5])
     except Exception as e:
+        onceki_durum = f'okunamadi ({str(e)[:100]})'
         print(f'Onceki EPG alinamadi: {e}'); return None
     simdi = datetime.now(timezone.utc)
     d = {'channels': {}, 'programs': collections.defaultdict(list)}
@@ -56,6 +62,7 @@ def onceki_veri():
                 d['programs'][p.get('channel')].append(p)
         except (TypeError, ValueError):
             pass
+    onceki_durum = f'{sum(len(v) for v in d["programs"].values())} gelecek program okundu'
     return d
 
 onceki = onceki_veri()
@@ -124,6 +131,7 @@ rapor = [
     f'- Dosya boyutu: {boyut/1024/1024:.1f} MB (gzip: {gz_boyut/1024/1024:.1f} MB)',
     f'- Toplam program: {toplam}',
     f'- Verisi gelen kanal: {len(secim)} / {len(sira)}',
+    f'- Onceki EPG: {onceki_durum}',
     '',
     '### Kaynak durumu',
 ]
