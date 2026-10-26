@@ -8,3 +8,7 @@ id = "KV_ID_BURAYA"
 
 [observability]
 enabled = true
+
+# Logolar: public/logo/*.png -> https://epg.epgdeposu.workers.dev/logo/<kanal>.png
+[assets]
+directory = "./public"

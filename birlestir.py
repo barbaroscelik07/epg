@@ -82,8 +82,7 @@ for x in sira:
     if os.path.exists(f'logos/{x}.png'):   # depodaki logo varsa her zaman onu kullan
         for i in c.findall('icon'):
             c.remove(i)
-        depo = os.environ.get('GITHUB_REPOSITORY', 'barbaroscelik07/epg')
-        ET.SubElement(c, 'icon', {'src': f'https://raw.githubusercontent.com/{depo}/main/logos/{x}.png'})
+        ET.SubElement(c, 'icon', {'src': f'https://epg.epgdeposu.workers.dev/logo/{x}.png'})
     if c.find('icon') is None:   # logo başka kaynağın kaydında varsa onu kullan
         for s in veri:
             diger = veri[s]['channels'].get(x)
