@@ -136,7 +136,7 @@ function sayfa(origin, kisiler, bekleyen, sifirlama, acik, mesaj, yeniKod) {
 </div>`;
   }).join("\n");
 
-  const yeniKutu = yeniKod ? `<div class="yeni">Yeni adres (TiviMate'e bunu girin):${adresKutusu(adresi(origin, yeniKod))}</div>` : "";
+  const yeniKutu = yeniKod ? `<div class="yeni">Yeni EPG adresi (IPTV uygulamasına EPG kaynağı olarak girilecek):${adresKutusu(adresi(origin, yeniKod))}</div>` : "";
 
   return sablon("EPG Yönetim", `<h1>EPG Yönetim</h1>
 ${mesajKutusu(mesaj)}

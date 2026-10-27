@@ -169,7 +169,7 @@ async function panel(request, env, url) {
         await env.EPG.delete(KUL + u.kod);
         u.kod = yeniKod;
         await uyeKaydet(env, u);
-        mesaj = "Token yenilendi. Eski adres artık çalışmaz; TiviMate'e yeni adresi girin.";
+        mesaj = "Token yenilendi. Eski adres artık çalışmaz; IPTV uygulamanızdaki EPG adresini yenisiyle değiştirin.";
       }
     }
   }
@@ -187,9 +187,9 @@ async function panel(request, env, url) {
     durumBolumu = `<div class="kart ${d}"><div class="ust"><b>${kac(u.kadi)}</b><span class="rozet">${DURUM_YAZI[d]}</span></div>
 <div>Bitiş: ${kac(k.bitis)}${d === "aktif" ? ` (${kalanGun(k.bitis)} gün kaldı)` : ""}</div>
 ${d === "doldu" ? '<div class="soluk">Süreniz doldu. Uzatmak için yöneticiyle görüşün.</div>' : ""}
-<div style="margin-top:8px">EPG adresiniz (TiviMate'e bunu girin):</div>
+<div style="margin-top:8px">EPG adresiniz (IPTV uygulamanıza EPG kaynağı olarak girin):</div>
 ${adresKutusu(adresi(url.origin, u.kod))}
-<form method="post" onsubmit="return confirm('Yeni adres oluşturulacak ve eski adres çalışmayacak. TiviMate\\'e yeni adresi girmeniz gerekecek. Devam edilsin mi?')">
+<form method="post" onsubmit="return confirm('Yeni adres oluşturulacak ve eski adres çalışmayacak. IPTV uygulamanızdaki EPG adresini yenisiyle değiştirmeniz gerekecek. Devam edilsin mi?')">
 <input type="hidden" name="islem" value="yenile"><button class="ikincil">Token yenile</button></form></div>`;
   }
 
