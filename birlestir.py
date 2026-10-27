@@ -82,6 +82,47 @@ for x in sira:
 if onceki:
     veri['onceki'] = onceki
 
+# Açıklaması olmayan programlara, aynı kanalda aynı programın başka kaynaktaki açıklamasını ekle
+# (başlangıç en fazla 5 dk farklı ve program adı aynı/biri diğerini içeriyorsa)
+def _ad(t):
+    return re.sub(r'[^a-z0-9]', '', (t or '').lower().translate(str.maketrans('ıİçğöşüâî', 'iicgosuai')))
+
+def _zaman(s):
+    try:
+        return datetime.strptime(s, '%Y%m%d%H%M%S %z')
+    except (TypeError, ValueError):
+        return None
+
+aciklama_eklenen = 0
+for x, s in secim.items():
+    eksik = [p for p in veri[s]['programs'][x] if not (p.findtext('desc') or '').strip()]
+    if not eksik:
+        continue
+    havuz = collections.defaultdict(list)   # dakika -> [(ad, açıklama)] — diğer kaynaklardan
+    for diger in veri:
+        if diger == s:
+            continue
+        for p in veri[diger]['programs'].get(x, []):
+            ac = (p.findtext('desc') or '').strip()
+            bas = _zaman(p.get('start'))
+            if ac and bas:
+                havuz[int(bas.timestamp()) // 60].append((_ad(p.findtext('title')), ac))
+    if not havuz:
+        continue
+    for p in eksik:
+        bas, ad_ = _zaman(p.get('start')), _ad(p.findtext('title'))
+        if not bas or not ad_:
+            continue
+        dk = int(bas.timestamp()) // 60
+        adaylar_ = [a for d in range(dk - 5, dk + 6) for a in havuz.get(d, [])]
+        for had, ac in adaylar_:
+            if had and (had == ad_ or had in ad_ or ad_ in had):
+                el = ET.Element('desc', {'lang': 'tr'}); el.text = ac
+                baslik = p.find('title')
+                p.insert(list(p).index(baslik) + 1 if baslik is not None else 0, el)
+                aciklama_eklenen += 1
+                break
+
 cikti = ET.Element('tv', {'generator-info-name': 'epgdeposu'})
 for x in sira:
     if x not in secim: continue
@@ -132,6 +173,7 @@ rapor = [
     f'- Toplam program: {toplam}',
     f'- Verisi gelen kanal: {len(secim)} / {len(sira)}',
     f'- Onceki EPG: {onceki_durum}',
+    f'- Baska kaynaktan eklenen aciklama: {aciklama_eklenen}',
     '',
     '### Kaynak durumu',
 ]
