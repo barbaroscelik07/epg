@@ -111,8 +111,19 @@ jobs:
           npx --yes wrangler@4 kv key put "guide.xml.gz" --path=guide.xml.gz --namespace-id="${CF_KV_ID}" --remote
 
       - name: Worker'i yayinla
+        env:
+          YONETIM_SIFRESI: ${{ secrets.YONETIM_SIFRESI }}
         run: |
           mkdir -p public/logo
           cp logos/*.png public/logo/ 2>/dev/null || true
           sed -i "s/KV_ID_BURAYA/${CF_KV_ID}/" wrangler.toml
-          npx --yes wrangler@4 deploy
+          for deneme in 1 2 3; do   # Cloudflare geçici hata (502 vb.) verirse tekrar dene
+            npx --yes wrangler@4 deploy && break
+            [ "$deneme" = 3 ] && exit 1
+            echo "Yayin basarisiz ($deneme. deneme), 60 sn sonra tekrar"; sleep 60
+          done
+          if [ -n "$YONETIM_SIFRESI" ]; then
+            printf '%s' "$YONETIM_SIFRESI" | npx --yes wrangler@4 secret put YONETIM_SIFRESI
+          else
+            echo "YONETIM_SIFRESI secret'i yok, yonetim sayfasi kapali kalacak"
+          fi
