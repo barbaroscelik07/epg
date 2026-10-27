@@ -10,7 +10,7 @@ export default {
     if (yol === "/yonetim" || yol === "/yonetim/") return yonetim(request, env, url);
 
     // Kişiye özel adres: /k/<kod>/guide.xml.gz veya /k/<kod>/guide.xml
-    const m = yol.match(/^\/k\/([A-Za-z0-9_-]{16,64})(\/.*)?$/);
+    const m = yol.match(/^\/k\/([A-Za-z0-9_-]{6,64})(\/.*)?$/);
     if (m) {
       const k = await env.EPG.get(KUL + m[1], { type: "json" });
       if (!k) return metin("Gecersiz adres", 404);
@@ -80,9 +80,25 @@ function durum(k) {
   return k.bitis >= bugun() ? "aktif" : "doldu";
 }
 
+// 6 karakterli kod: küçük harf + rakam, karışan karakterler (0 o 1 l i) yok → 31^6 ≈ 887 milyon ihtimal
+const HARFLER = "23456789abcdefghjkmnpqrstuvwxyz";
 function kodUret() {
-  const b = crypto.getRandomValues(new Uint8Array(18));
-  return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  let s = "";
+  while (s.length < 6) {
+    for (const b of crypto.getRandomValues(new Uint8Array(12))) {
+      if (b < 248 && s.length < 6) s += HARFLER[b % 31];   // 248 = 31*8: eşit dağılım
+    }
+  }
+  return s;
+}
+
+// Daha önce verilmemiş bir kod üret
+async function bosKodBul(env) {
+  for (let i = 0; i < 10; i++) {
+    const kod = kodUret();
+    if (!(await env.EPG.get(KUL + kod))) return kod;
+  }
+  throw new Error("Bos kod bulunamadi");
 }
 
 function kac(s) {
@@ -126,7 +142,7 @@ async function yonetim(request, env, url) {
       const ad = String(f.get("ad") || "").trim().slice(0, 60);
       const ay = f.get("sure") === "12" ? 12 : 6;
       if (!ad) return yonlendir("Ad bos olamaz");
-      const yeni = kodUret();
+      const yeni = await bosKodBul(env);
       await kaydet(env, yeni, { ad, bitis: ayEkle(bugun(), ay), aktif: true, olusturma: bugun() });
       return yonlendir(`${ad} eklendi`, yeni);
     }
@@ -134,7 +150,7 @@ async function yonetim(request, env, url) {
       await env.EPG.put("acik-erisim", f.get("durum") === "kapat" ? "kapali" : "acik");
       return yonlendir("Herkese acik adres ayari kaydedildi");
     }
-    if (!/^[A-Za-z0-9_-]{16,64}$/.test(kod)) return yonlendir("Gecersiz kisi");
+    if (!/^[A-Za-z0-9_-]{6,64}$/.test(kod)) return yonlendir("Gecersiz kisi");
     const k = await env.EPG.get(KUL + kod, { type: "json" });
     if (!k) return yonlendir("Kisi bulunamadi");
     if (islem === "uzat") {
