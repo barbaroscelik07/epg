@@ -27,6 +27,7 @@ const STIL = `
   --iyi-z:#12351F;--iyi-y:#86EFAC;--bekle-z:#3A2A0A;--bekle-y:#FCD34D;--kotu-z:#3B1212;--kotu-y:#FCA5A5;
 }}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;background:var(--zemin);color:var(--yazi)}
 body{font:16px/1.5 'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
 a{color:var(--vurgu-yazi);text-decoration:none;font-weight:700}a:hover{text-decoration:underline}
@@ -88,13 +89,50 @@ main.icerik{max-width:640px;margin:0 auto;padding:24px 20px 40px;display:flex;fl
 .adim-no.bitti{background:var(--vurgu);border-color:var(--vurgu);color:#FFF}
 .adim-no.simdi{border-color:var(--vurgu);color:var(--vurgu-yazi)}
 .adim span{color:var(--soluk)}
+
+/* yönetim */
+.genis{max-width:880px}
+.ozet{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (min-width:640px){.ozet{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.ozet a{background:var(--kart);border:1px solid var(--cizgi);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:2px;color:var(--yazi);font-weight:400}
+.ozet a:hover{text-decoration:none;border-color:var(--vurgu)}
+.ozet b{font-size:26px;font-weight:800;letter-spacing:-.02em}.ozet span{font-size:13px;color:var(--soluk)}
+.bolum-bas{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}
+.bolum-bas h2{font-size:18px;font-weight:800}
+.sayi{display:inline-flex;min-width:24px;height:24px;padding:0 8px;border-radius:12px;background:var(--vurgu-acik);color:var(--vurgu-yazi);font-size:13px;font-weight:700;align-items:center;justify-content:center;margin-left:6px;vertical-align:2px}
+.satir{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.satir form{margin:0}
+.kucuk{height:40px;padding:0 14px;border-radius:12px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;border:1px solid var(--girdi);background:var(--kart);color:var(--yazi);display:inline-flex;align-items:center;gap:6px}
+.kucuk:hover{background:var(--zemin)}
+.kucuk.ana{background:var(--vurgu);border-color:var(--vurgu);color:#FFF}.kucuk.ana:hover{background:var(--vurgu-koyu)}
+.kucuk.tehlike{color:var(--kotu-y);border-color:var(--girdi)}.kucuk.tehlike:hover{background:var(--kotu-z)}
+.kisi-ust{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.kisi-ad{font-size:17px;font-weight:700}.kisi-alt{font-size:13px;color:var(--soluk);margin-top:2px}
+.adres-satir{display:flex;gap:8px;align-items:stretch}
+.adres-satir .adres{flex:1;min-width:0;padding:10px 12px;font-size:12px}
+.adres-satir .kucuk{height:auto}
+.filtre{display:flex;flex-wrap:wrap;gap:8px}
+.filtre button{height:36px;padding:0 14px;border-radius:18px;border:1px solid var(--girdi);background:var(--kart);color:var(--soluk);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.filtre button[aria-pressed="true"]{background:var(--vurgu);border-color:var(--vurgu);color:#FFF}
+.ara{height:46px}
+.ekle-satir{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px}
+.ekle-satir select{height:52px;padding:0 12px;border:1px solid var(--girdi);border-radius:14px;background:var(--kart);color:var(--yazi);font:inherit;font-size:15px}
+.ekle-satir .dugme{width:auto;padding:0 20px;height:52px}
+@media (max-width:480px){.ekle-satir{grid-template-columns:minmax(0,1fr) auto}.ekle-satir input{grid-column:1 / -1}}
+.sifre-goster{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:22px;font-weight:500;letter-spacing:.08em}
+.bos{padding:24px;text-align:center;color:var(--soluk);font-size:14px}
+details.daha summary{list-style:none;cursor:pointer}details.daha summary::-webkit-details-marker{display:none}
+details.daha[open] summary{margin-bottom:8px}
 `;
 
 const KOPYALA_JS = `<script>
-function kopyala(b){var a=b.getAttribute('data-adres');var bitti=function(){var e=b.querySelector('span');e.textContent='Kopyalandı';setTimeout(function(){e.textContent='Adresi kopyala'},1600)};
+function kopyala(b){var a=b.getAttribute('data-adres');var bitti=function(){var e=b.querySelector('span')||b;var o=e.textContent;e.textContent='Kopyalandı';setTimeout(function(){e.textContent=o},1600)};
 if(navigator.clipboard){navigator.clipboard.writeText(a).then(bitti,function(){eski(a);bitti()})}else{eski(a);bitti()}}
 function eski(a){var t=document.createElement('textarea');t.value=a;document.body.appendChild(t);t.select();try{document.execCommand('copy')}catch(e){}document.body.removeChild(t)}
 function guc(i){var v=i.value,p=0;if(v.length>=8)p++;if(v.length>=12)p++;if(/[0-9]/.test(v)&&/[a-zA-Z]/.test(v)&&v.length>=10)p++;var c=document.querySelectorAll('.guc i');for(var k=0;k<c.length;k++)c[k].className=k<p?'dolu':''}
+function suz(){var q=(document.getElementById('ara')||{}).value||'';q=q.toLocaleLowerCase('tr');var f=document.querySelector('.filtre [aria-pressed="true"]');f=f?f.getAttribute('data-f'):'hepsi';var n=0;
+document.querySelectorAll('[data-kisi]').forEach(function(k){var ok=(f==='hepsi'||k.getAttribute('data-durum').split(' ').indexOf(f)>=0)&&k.getAttribute('data-ara').indexOf(q)>=0;k.hidden=!ok;if(ok)n++});var b=document.getElementById('sonuc-yok');if(b)b.hidden=n>0}
+function filtre(b){document.querySelectorAll('.filtre button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});suz()}
 </script>`;
 
 export function uyeSablon(baslik, govde) {
@@ -122,10 +160,12 @@ export const IKON = {
   kilit: svg('<rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path>', 18),
   saat: svg('<circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>', 34),
   tamam: svg('<path d="M5 12l5 5L20 7"></path>', 14),
+  arti: svg('<path d="M12 5v14"></path><path d="M5 12h14"></path>', 16),
+  kopyaK: svg('<rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>', 16),
 };
 
-export function marka(boyut = 24) {
-  return `<a class="marka" href="/giris"><span class="logo">${IKON.logo(boyut)}</span>EPG Deposu</a>`;
+export function marka(boyut = 24, adres = "/giris", ek = "") {
+  return `<a class="marka" href="${adres}"><span class="logo">${IKON.logo(boyut)}</span>EPG Deposu${ek}</a>`;
 }
 
 export function uyari(mesaj, tur = "bilgi") {

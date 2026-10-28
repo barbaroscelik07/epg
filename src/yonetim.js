@@ -1,8 +1,9 @@
 // Yönetim sayfası (yalnızca yönetici şifresiyle)
 import {
   KUL, UYE, metin, html, git, bugun, simdi, ayEkle, kalanGun, durum, DURUM_YAZI, rastgele, bosKodBul,
-  kac, esit, adresi, kaydet, uyeAl, uyeKaydet, listele, sifreOzetle, ayniSite, sablon, mesajKutusu, adresKutusu,
+  kac, esit, adresi, kaydet, uyeAl, uyeKaydet, listele, sifreOzetle, ayniSite,
 } from "./ortak.js";
+import { uyeSablon, marka, uyari, tarihYaz, IKON } from "./gorunum.js";
 
 const KOD = /^[A-Za-z0-9_-]{6,64}$/;
 const KADI = /^[a-z0-9_.]{3,20}$/;
@@ -58,7 +59,7 @@ export async function yonetim(request, env, url) {
       Object.assign(u, await sifreOzetle(gecici));
       u.gecici = true; u.sifirlama = null;
       await uyeKaydet(env, u);
-      return sayfaGoster(env, url, `${kadi} için geçici şifre: ${gecici}  —  Bunu kişiye iletin; girişten sonra kendi şifresini belirlemesi istenecek.`);
+      return sayfaGoster(env, url, "", "", { kadi, sifre: gecici });
     }
 
     // EPG erişimi işlemleri (koda göre)
@@ -92,67 +93,123 @@ function yonlendir(mesaj, yeniKod = "") {
   return git("/yonetim?" + q);
 }
 
-async function sayfaGoster(env, url, mesaj, yeniKod = "") {
+async function sayfaGoster(env, url, mesaj, yeniKod = "", gecici = null) {
   const [kisiler, uyeler, acikDeger] = await Promise.all([listele(env, KUL), listele(env, UYE), env.EPG.get("acik-erisim")]);
-  kisiler.sort((a, b) => a.ad.localeCompare(b.ad, "tr"));
   const bekleyen = uyeler.filter((u) => u.durum === "bekliyor");
   const sifirlama = uyeler.filter((u) => u.sifirlama);
-  return html(sayfa(url.origin, kisiler, bekleyen, sifirlama, acikDeger !== "kapali", mesaj, yeniKod));
+  return html(sayfa(url.origin, kisiler, bekleyen, sifirlama, acikDeger !== "kapali", mesaj, yeniKod, gecici));
 }
 
-function sayfa(origin, kisiler, bekleyen, sifirlama, acik, mesaj, yeniKod) {
-  const form = (alanlar, yazi, onay = "", sinif = "") =>
+const YAKLASAN_GUN = 14;
+
+function sayfa(origin, kisiler, bekleyen, sifirlama, acik, mesaj, yeniKod, gecici) {
+  const form = (alanlar, yazi, sinif = "kucuk", onay = "") =>
     `<form method="post"${onay ? ` onsubmit="return confirm('${kac(onay)}')"` : ""}>${Object.entries(alanlar)
-      .map(([a, v]) => `<input type="hidden" name="${a}" value="${kac(v)}">`).join("")}<button${sinif ? ` class="${sinif}"` : ""}>${yazi}</button></form>`;
+      .map(([a, v]) => `<input type="hidden" name="${a}" value="${kac(v)}">`).join("")}<button class="${sinif}">${yazi}</button></form>`;
+  const kopyaDugme = (deger, yazi = "Kopyala") =>
+    `<button type="button" class="kucuk" data-adres="${kac(deger)}" onclick="kopyala(this)">${IKON.kopyaK}<span>${yazi}</span></button>`;
 
-  const bekleyenHtml = bekleyen.map((u) => `<div class="kart bekliyor">
-  <div class="ust"><b>${kac(u.kadi)}</b><span class="rozet">Onay bekliyor</span></div>
-  <div class="soluk">Kayıt: ${kac(u.kayit)}</div>
-  <div class="butonlar" style="margin-top:8px">
-    ${form({ islem: "onayla", kadi: u.kadi, sure: "6" }, "Onayla (6 ay)")}
-    ${form({ islem: "onayla", kadi: u.kadi, sure: "12" }, "Onayla (1 yıl)")}
-    ${form({ islem: "reddet", kadi: u.kadi }, "Reddet", `${u.kadi} reddedilip silinsin mi?`, "ikincil")}
-  </div></div>`).join("\n");
-
-  const sifirlamaHtml = sifirlama.map((u) => `<div class="kart bekliyor">
-  <div class="ust"><b>${kac(u.kadi)}</b><span class="rozet">Şifre unuttu</span></div>
-  <div class="soluk">İstek: ${kac(u.sifirlama)}</div>
-  <div class="butonlar" style="margin-top:8px">${form({ islem: "sifirla", kadi: u.kadi }, "Geçici şifre oluştur")}</div></div>`).join("\n");
-
-  const kisilerHtml = kisiler.map((k) => {
+  // Kişileri hazırla: durum, kalan gün, yaklaşan
+  const liste = kisiler.map((k) => {
     const d = durum(k);
-    return `<div class="kart ${d}">
-  <div class="ust"><b>${kac(k.ad)}</b><span class="rozet">${DURUM_YAZI[d]}</span></div>
-  <div>Bitiş: ${kac(k.bitis)}${d === "aktif" ? ` (${kalanGun(k.bitis)} gün kaldı)` : ""}</div>
-  ${k.uye ? `<div class="soluk">Üye: ${kac(k.uye)}${k.sonYenileme ? ` · Son token yenileme: ${kac(k.sonYenileme)}` : ""}</div>` : ""}
-  ${adresKutusu(adresi(origin, k.anahtar, k.uye))}
-  <div class="butonlar">
-    ${form({ islem: "uzat", kod: k.anahtar, sure: "6" }, "+6 ay")}
-    ${form({ islem: "uzat", kod: k.anahtar, sure: "12" }, "+1 yıl")}
-    ${k.aktif ? form({ islem: "durdur", kod: k.anahtar }, "Durdur") : form({ islem: "ac", kod: k.anahtar }, "Yeniden aç")}
-    ${k.uye ? form({ islem: "sifirla", kadi: k.uye }, "Şifre sıfırla", `${k.uye} için geçici şifre oluşturulsun mu? Mevcut şifresi çalışmaz.`, "ikincil") : ""}
-    ${form({ islem: "sil", kod: k.anahtar }, "Sil", `${k.ad} silinsin mi? Adresi bir daha çalışmaz${k.uye ? ", üyelik hesabı da silinir" : ""}.`, "ikincil")}
-  </div>
+    const kalan = kalanGun(k.bitis);
+    const yaklasan = d === "aktif" && kalan <= YAKLASAN_GUN;
+    return { ...k, d, kalan, yaklasan };
+  }).sort((a, b) => (a.d === "aktif" ? 0 : 1) - (b.d === "aktif" ? 0 : 1) || a.bitis.localeCompare(b.bitis));
+  const say = {
+    aktif: liste.filter((k) => k.d === "aktif").length,
+    yaklasan: liste.filter((k) => k.yaklasan).length,
+    bitti: liste.filter((k) => k.d !== "aktif").length,
+  };
+
+  const kart = (k) => {
+    const rozet = k.yaklasan ? `<span class="rozet bekliyor">${k.kalan} gün kaldı</span>` : `<span class="rozet ${k.d}">${DURUM_YAZI[k.d]}</span>`;
+    const alt = [k.uye ? `Üye: ${kac(k.uye)}` : "Üyeliksiz", `Bitiş: ${tarihYaz(k.bitis)}${k.d === "aktif" && !k.yaklasan ? ` · ${k.kalan} gün` : ""}`]
+      .concat(k.sonYenileme ? [`Son token yenileme: ${tarihYaz(k.sonYenileme)}`] : []).join(" · ");
+    const durumlar = [k.d, k.yaklasan ? "yaklasan" : "", k.d !== "aktif" ? "bitti" : ""].join(" ").trim();
+    const aranan = `${k.ad} ${k.uye || ""}`.toLocaleLowerCase("tr");
+    return `<section class="kutu" data-kisi data-durum="${durumlar}" data-ara="${kac(aranan)}">
+<div class="kisi-ust"><div><div class="kisi-ad">${kac(k.ad)}</div><div class="kisi-alt">${alt}</div></div>${rozet}</div>
+<div class="adres-satir"><div class="adres">${kac(adresi(origin, k.anahtar, k.uye))}</div>${kopyaDugme(adresi(origin, k.anahtar, k.uye))}</div>
+<div class="satir">
+${form({ islem: "uzat", kod: k.anahtar, sure: "6" }, `${IKON.arti}6 ay`, "kucuk ana")}
+${form({ islem: "uzat", kod: k.anahtar, sure: "12" }, `${IKON.arti}1 yıl`, "kucuk ana")}
+${k.aktif ? form({ islem: "durdur", kod: k.anahtar }, "Durdur") : form({ islem: "ac", kod: k.anahtar }, "Yeniden aç")}
+${k.uye ? form({ islem: "sifirla", kadi: k.uye }, "Şifre sıfırla", "kucuk", `${k.uye} için geçici şifre oluşturulsun mu? Mevcut şifresi çalışmaz.`) : ""}
+${form({ islem: "sil", kod: k.anahtar }, "Sil", "kucuk tehlike", `${k.ad} silinsin mi? Adresi bir daha çalışmaz${k.uye ? ", üyelik hesabı da silinir" : ""}.`)}
+</div></section>`;
+  };
+
+  const bekleyenHtml = bekleyen.map((u) => `<section class="kutu">
+<div class="kisi-ust"><div><div class="kisi-ad">${kac(u.kadi)}</div><div class="kisi-alt">Kayıt: ${tarihYaz(u.kayit)}</div></div><span class="rozet bekliyor">Onay bekliyor</span></div>
+<div class="satir">
+${form({ islem: "onayla", kadi: u.kadi, sure: "6" }, "Onayla · 6 ay", "kucuk ana")}
+${form({ islem: "onayla", kadi: u.kadi, sure: "12" }, "Onayla · 1 yıl", "kucuk ana")}
+${form({ islem: "reddet", kadi: u.kadi }, "Reddet", "kucuk tehlike", `${u.kadi} reddedilip silinsin mi?`)}
+</div></section>`).join("\n");
+
+  const sifirlamaHtml = sifirlama.map((u) => `<section class="kutu">
+<div class="kisi-ust"><div><div class="kisi-ad">${kac(u.kadi)}</div><div class="kisi-alt">İstek: ${tarihYaz(u.sifirlama)}</div></div><span class="rozet bekliyor">Şifresini unuttu</span></div>
+<div class="satir">${form({ islem: "sifirla", kadi: u.kadi }, "Geçici şifre oluştur", "kucuk ana")}</div></section>`).join("\n");
+
+  const geciciKutu = gecici ? `<section class="kutu" style="border-color:var(--vurgu)">
+<div class="kutu-bas"><span class="kutu-ikon" style="background:var(--vurgu-acik);color:var(--vurgu-yazi)">${IKON.kilit}</span><h2>${kac(gecici.kadi)} için geçici şifre</h2></div>
+<div class="adres-satir"><div class="adres sifre-goster">${kac(gecici.sifre)}</div>${kopyaDugme(gecici.sifre)}</div>
+<p>Bu şifreyi kişiye ilet. Girişten sonra kendi şifresini belirlemesi istenecek. Sayfa yenilenince bu şifre bir daha gösterilmez.</p>
+</section>` : "";
+
+  const yeniKutu = yeniKod ? `<section class="kutu" style="border-color:var(--vurgu)">
+<div class="kutu-bas"><span class="kutu-ikon" style="background:var(--vurgu-acik);color:var(--vurgu-yazi)">${IKON.link}</span><h2>Yeni EPG adresi</h2></div>
+<div class="adres-satir"><div class="adres">${kac(adresi(origin, yeniKod))}</div>${kopyaDugme(adresi(origin, yeniKod))}</div>
+<p>Bu adres IPTV uygulamasına EPG kaynağı olarak girilecek.</p></section>` : "";
+
+  const ozet = `<div class="ozet">
+<a href="#kisiler" onclick="filtre(document.querySelector('[data-f=aktif]'))"><b>${say.aktif}</b><span>Aktif</span></a>
+<a href="#bekleyenler"><b>${bekleyen.length}</b><span>Onay bekleyen</span></a>
+<a href="#kisiler" onclick="filtre(document.querySelector('[data-f=yaklasan]'))"><b>${say.yaklasan}</b><span>${YAKLASAN_GUN} gün içinde bitecek</span></a>
+<a href="#kisiler" onclick="filtre(document.querySelector('[data-f=bitti]'))"><b>${say.bitti}</b><span>Süresi dolan / durdurulan</span></a>
 </div>`;
-  }).join("\n");
 
-  const yeniKutu = yeniKod ? `<div class="yeni">Yeni EPG adresi (IPTV uygulamasına EPG kaynağı olarak girilecek):${adresKutusu(adresi(origin, yeniKod))}</div>` : "";
-
-  return sablon("EPG Yönetim", `<h1>EPG Yönetim</h1>
-${mesajKutusu(mesaj)}
+  return uyeSablon("Yönetim", `<header class="ust-bar"><div class="genis">${marka(20, "/yonetim", ' <span style="font-weight:600;color:var(--soluk)">· Yönetim</span>')}</div></header>
+<main class="icerik genis">
+${uyari(mesaj, "iyi")}
+${geciciKutu}
 ${yeniKutu}
-${bekleyen.length ? `<h2>Onay bekleyenler (${bekleyen.length})</h2>${bekleyenHtml}` : ""}
-${sifirlama.length ? `<h2>Şifre sıfırlama istekleri (${sifirlama.length})</h2>${sifirlamaHtml}` : ""}
-<div class="panel"><b>Yeni kişi (üyeliksiz)</b>
-<form method="post" class="ekle"><input type="hidden" name="islem" value="ekle">
-<input name="ad" placeholder="Ad (ör. Kardeşim)" required maxlength="60">
-<select name="sure"><option value="6">6 ay</option><option value="12">1 yıl</option></select>
-<button>Ekle</button></form></div>
-<h2>Kişiler (${kisiler.length})</h2>
-${kisilerHtml || '<p class="soluk">Henüz kimse yok.</p>'}
-<p class="soluk">Yeni kayıtlar ve değişiklikler listede ve adreste 1 dakikaya kadar gecikmeyle görünebilir.
-Üye olmak isteyenlere şu adresi verin: <a href="/kayit">${kac(origin)}/kayit</a></p>
-<h2>Herkese açık eski adres</h2>
-<div class="panel">${kac(origin)}/guide.xml.gz : <b>${acik ? "Açık" : "Kapalı"}</b>
-<div style="margin-top:8px">${form({ islem: "acik", durum: acik ? "kapat" : "ac" }, acik ? "Kapat" : "Aç")}</div></div>`);
+${ozet}
+
+${bekleyen.length ? `<div class="bolum-bas" id="bekleyenler"><h2>Onay bekleyenler<span class="sayi">${bekleyen.length}</span></h2></div>${bekleyenHtml}` : '<span id="bekleyenler"></span>'}
+${sifirlama.length ? `<div class="bolum-bas"><h2>Şifre sıfırlama istekleri<span class="sayi">${sifirlama.length}</span></h2></div>${sifirlamaHtml}` : ""}
+
+<div class="bolum-bas" id="kisiler"><h2>Kişiler<span class="sayi">${liste.length}</span></h2></div>
+<input id="ara" class="ara" type="search" placeholder="Ad ya da kullanıcı adı ara" aria-label="Kişi ara" oninput="suz()">
+<div class="filtre" role="group" aria-label="Duruma göre süz">
+<button type="button" data-f="hepsi" aria-pressed="true" onclick="filtre(this)">Tümü</button>
+<button type="button" data-f="aktif" aria-pressed="false" onclick="filtre(this)">Aktif</button>
+<button type="button" data-f="yaklasan" aria-pressed="false" onclick="filtre(this)">Yakında bitecek</button>
+<button type="button" data-f="bitti" aria-pressed="false" onclick="filtre(this)">Dolan / durdurulan</button>
+</div>
+${liste.map(kart).join("\n") || '<div class="kutu bos">Henüz kimse yok.</div>'}
+<div class="kutu bos" id="sonuc-yok" hidden>Bu aramaya uyan kişi yok.</div>
+<p class="ipucu">Yeni kayıtlar ve değişiklikler listede ve adreste 1 dakikaya kadar gecikmeyle görünebilir.</p>
+
+<div class="bolum-bas"><h2>Ekle ve paylaş</h2></div>
+<section class="kutu">
+<div class="kutu-bas"><span class="kutu-ikon" style="background:var(--vurgu-acik);color:var(--vurgu-yazi)">${IKON.link}</span><h2>Üye kayıt adresi</h2></div>
+<p>Üye olmak isteyenlere bu adresi gönder. Kayıt olanlar yukarıda onay bekler.</p>
+<div class="adres-satir"><div class="adres">${kac(origin)}/kayit</div>${kopyaDugme(origin + "/kayit")}</div>
+</section>
+<section class="kutu">
+<div class="kutu-bas"><span class="kutu-ikon" style="background:var(--gri-acik);color:var(--gri)">${IKON.arti}</span><h2>Üyeliksiz kişi ekle</h2></div>
+<p>Hesap açmadan doğrudan EPG adresi verir. Kişi panel kullanamaz, token'ını kendisi yenileyemez.</p>
+<form method="post" class="ekle-satir"><input type="hidden" name="islem" value="ekle">
+<input name="ad" placeholder="Ad (ör. Kardeşim)" required maxlength="60" aria-label="Ad">
+<select name="sure" aria-label="Süre"><option value="6">6 ay</option><option value="12">1 yıl</option></select>
+<button class="dugme">Ekle</button></form>
+</section>
+<section class="kutu">
+<div class="kisi-ust"><div><div class="kisi-ad">Herkese açık eski adres</div><div class="kisi-alt">${kac(origin)}/guide.xml.gz</div></div><span class="rozet ${acik ? "bekliyor" : "aktif"}">${acik ? "Açık" : "Kapalı"}</span></div>
+<p>${acik ? "Bu adresi bilen herkes süre sınırı olmadan EPG alabilir. Herkes kişisel adresine geçtiyse kapat." : "Kapalı. Yalnızca kişisel adresler çalışıyor."}</p>
+<div class="satir">${form({ islem: "acik", durum: acik ? "kapat" : "ac" }, acik ? "Kapat" : "Aç", acik ? "kucuk ana" : "kucuk")}</div>
+</section>
+</main>`);
 }
