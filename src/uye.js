@@ -18,6 +18,7 @@ export async function uyeYolu(request, env, url) {
   if (yol === "/kayit") return kayit(request, env, url);
   if (yol === "/sifremi-unuttum") return unuttum(request, env);
   if (yol === "/panel") return panel(request, env, url);
+  if (yol === "/panel/durum") return panelDurum(request, env);
   return null;
 }
 
@@ -43,6 +44,23 @@ async function oturumKullanici(request, env) {
   const [kadi, isaret] = deger.split("#");
   const u = await uyeAl(env, kadi);
   return u ? { u, anahtar, geciciOturum: isaret === "gecici" && !!u.gecici } : null;
+}
+
+// İşlem sonrası yönlendirmede gösterilen mesajlar (/panel?m=...)
+const PANEL_MESAJ = {
+  sifre: "Şifren değiştirildi.",
+  odeme: "Ödeme bildirimin alındı. Yönetici kontrol edip onaylayınca süren başlayacak.",
+  "odeme-var": "Ödeme bildirimin zaten alındı, yönetici onayını bekle.",
+  token: "Token yenilendi. Eski adres artık çalışmaz; IPTV uygulamandaki EPG adresini yenisiyle değiştir.",
+};
+
+// Onay bekleyen sayfa bunu yoklar; durum değişince sayfa kendini yeniler
+async function panelDurum(request, env) {
+  const o = await oturumKullanici(request, env);
+  return new Response(JSON.stringify({ durum: o ? o.u.durum : null }), {
+    status: o ? 200 : 401,
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
+  });
 }
 
 const CEREZ_SIL = "oturum=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
@@ -156,7 +174,7 @@ async function panel(request, env, url) {
   const o = await oturumKullanici(request, env);
   if (!o) return git("/giris");
   const { u, anahtar, geciciOturum } = o;
-  let mesaj = "", hata = false, sifreIslemi = false;
+  let mesaj = PANEL_MESAJ[url.searchParams.get("m")] || "", hata = false, sifreIslemi = false;
 
   if (request.method === "POST") {
     const f = await request.formData();
@@ -175,18 +193,18 @@ async function panel(request, env, url) {
         Object.assign(u, await sifreOzetle(yeni));
         u.gecici = false;
         await uyeKaydet(env, u);
-        mesaj = "Şifren değiştirildi.";
+        return git("/panel?m=sifre");
       }
     }
     if (islem === "odeme") {
       const plan = PLANLAR.find((p) => String(p.tutar) === String(f.get("tutar")));
       if (!plan || !["bekliyor", "onayli"].includes(u.durum)) { mesaj = "Bir tutar seç."; hata = true; }
-      else if (u.odeme) { mesaj = "Ödeme bildirimin zaten alındı, yönetici onayını bekle."; }
+      else if (u.odeme) return git("/panel?m=odeme-var");
       else {
         u.odeme = { tutar: plan.tutar, ay: plan.ay, tarih: simdi() };
         await uyeKaydet(env, u);
         await bildir(env, `Ödeme bildirimi: ${u.kadi}\n${plan.tutar} TL · ${sureYaz(plan.ay)}\nBanka açıklaması: ${odemeAciklamasi(u.kadi)}\nKontrol edip yönetim sayfasından onaylayın.`);
-        mesaj = "Ödeme bildirimin alındı. Yönetici kontrol edip onaylayınca süren başlayacak.";
+        return git("/panel?m=odeme");
       }
     }
     if (islem === "yenile") {
@@ -199,7 +217,7 @@ async function panel(request, env, url) {
         await env.EPG.delete(KUL + u.kod);
         u.kod = yeniKod;
         await uyeKaydet(env, u);
-        mesaj = "Token yenilendi. Eski adres artık çalışmaz; IPTV uygulamandaki EPG adresini yenisiyle değiştir.";
+        return git("/panel?m=token");
       }
     }
   }
@@ -222,8 +240,9 @@ async function panel(request, env, url) {
 <span class="bekle-ikon">${IKON.saat}</span>
 <span class="rozet bekliyor" style="align-self:center">Onay bekliyor</span>
 <h2>Üyeliğin incelemede</h2>
-<p style="font-size:15px">Yönetici onayladığında EPG adresin ve bitiş tarihin burada görünecek. Bu sayfayı daha sonra yenileyerek kontrol edebilirsin.</p>
+<p style="font-size:15px">Yönetici onayladığında EPG adresin ve bitiş tarihin burada görünecek. Sayfa açık kaldığı sürece kendiliğinden yenilenir.</p>
 </section>
+<script>(function(){let s=0;async function b(){if(document.visibilityState!=="visible"||s)return;s=1;try{const r=await fetch("/panel/durum",{cache:"no-store"});const j=r.ok?await r.json():null;if(!j||j.durum!=="bekliyor"){location.replace("/panel");return}}catch(e){}s=0}setInterval(b,30000);document.addEventListener("visibilitychange",b)})()</script>
 <!--odeme-->
 <section class="kutu"><h2 style="font-size:16px">Sırada ne var?</h2>
 <div class="adim"><span class="adim-no bitti">${IKON.tamam}</span><div><b>Kayıt alındı</b><br><span>${tarihYaz(u.kayit)}</span></div></div>
@@ -312,6 +331,7 @@ ${geciciGiris ? "" : '<div class="alan"><label for="mevcut">Mevcut şifre</label
 <main class="icerik">
 <div class="selam">Merhaba,<h1>${kac(u.kadi)}</h1></div>
 ${uyari(mesaj, hata ? "hata" : "iyi")}
+${url.searchParams.has("m") ? '<script>history.replaceState(null,"","/panel")</script>' : ""}
 ${u.gecici ? uyari("Geçici şifreyle giriş yaptın. Lütfen aşağıdan kendi şifreni belirle.", "hata") : ""}
 ${bolumler}
 </main>`), hata ? 400 : 200);
