@@ -71,7 +71,7 @@ details.uyg summary::after{content:"+";font-size:22px;color:var(--soluk)}details
 details.uyg>div{padding:0 20px 20px}
 details.uyg ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px}
 details.uyg li{line-height:1.5}
-.kaynak{margin-top:12px;font-size:13px;color:var(--soluk2)}
+.kaynak{margin-top:12px;font-size:13px;color:var(--soluk2);overflow-wrap:anywhere}
 .rozet-k{display:inline-block;font-size:12px;font-weight:700;padding:3px 8px;border-radius:99px;margin-left:6px;vertical-align:2px}
 .rozet-k.dogru{background:var(--iyi-z);color:var(--iyi-y)}.rozet-k.belirsiz{background:var(--bekle-z);color:var(--bekle-y)}
 code{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;background:var(--zemin);border:1px solid var(--cizgi);border-radius:6px;padding:1px 6px;word-break:break-all}
@@ -254,7 +254,7 @@ const UYGULAMALAR = [
 
 export function kurulumSayfasi() {
   const bolumler = UYGULAMALAR.map((u, i) => `<details class="uyg"${i === 0 ? " open" : ""}>
-<summary><span>${u.ad}<span class="rozet-k ${u.dogrulandi ? "dogru" : "belirsiz"}">${u.rozet || "Doğrulanmadı"}</span></span></summary>
+<summary><span>${u.ad}</span></summary>
 <div><ol>${u.adimlar.map((a) => `<li>${a}</li>`).join("")}</ol>
 <p class="kaynak">${u.not}${u.kaynak ? ` Kaynak: <a href="${u.kaynak}" target="_blank" rel="noopener">${u.kaynak.replace(/^https:\/\//, "")}</a>` : ""}</p></div>
 </details>`).join("\n");
