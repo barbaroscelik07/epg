@@ -2,8 +2,8 @@
 import {
   KUL, UYE, OTURUM, html, git, metin, bugun, simdi, kalanGun, durum, DURUM_YAZI, rastgele, bosKodBul,
   kac, adresi, kaydet, uyeAl, uyeKaydet, listele, sifreOzetle, sifreDogru, bildir, ayniSite,
-  sablon, mesajKutusu, adresKutusu,
 } from "./ortak.js";
+import { uyeSablon, marka, uyari, halka, tarihYaz, IKON } from "./gorunum.js";
 
 const KADI = /^[a-z0-9_.]{3,20}$/;
 const OTURUM_GUN = 30;
@@ -46,18 +46,29 @@ async function oturumKullanici(request, env) {
 
 const CEREZ_SIL = "oturum=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
 
-// ---------- Ortak form parçaları ----------
-function sayfaYap(baslik, icerik, status = 200, ek = {}) {
-  return html(sablon(baslik, `<h1>${kac(baslik)}</h1>${icerik}`), status, ek);
+// ---------- Giriş / kayıt / şifremi unuttum sayfa iskeleti ----------
+function girisIskelet(baslik, ust, h1, aciklama, mesaj, tur, icerik, status = 200) {
+  return html(uyeSablon(baslik, `<div class="kap">
+<div class="ust-satir">${marka()}${ust}</div>
+<div class="baslik"><h1>${h1}</h1><p>${aciklama}</p></div>
+${uyari(mesaj, tur)}
+${icerik}
+<div class="dip">EPG Deposu · Yayın akışı hizmeti</div>
+</div>`), status);
 }
 
+const KADI_ALANI = (kadi, otomatik) => `<div class="alan"><label for="kadi">Kullanıcı adı</label>
+<input id="kadi" name="kadi" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="${otomatik}" required maxlength="20" value="${kac(kadi)}"></div>`;
+
 function girisFormu(mesaj = "", hata = false, kadi = "") {
-  return sayfaYap("EPG Giriş", `${mesajKutusu(mesaj, hata)}
-<div class="panel"><form method="post" class="dikey">
-<input name="kadi" placeholder="Kullanıcı adı" autocapitalize="none" autocomplete="username" required value="${kac(kadi)}">
-<input name="sifre" type="password" placeholder="Şifre" autocomplete="current-password" required>
-<button>Giriş</button></form></div>
-<p><a href="/kayit">Üye ol</a> · <a href="/sifremi-unuttum">Şifremi unuttum</a></p>`, hata ? 400 : 200);
+  return girisIskelet("Giriş", "", "Tekrar hoş geldin", "Yayın akışı adresine ve üyelik bilgilerine ulaşmak için giriş yap.",
+    mesaj, hata ? "hata" : "bilgi", `<form method="post" class="alanlar">
+${KADI_ALANI(kadi, "username")}
+<div class="alan"><div class="alan-ust"><label for="sifre">Şifre</label><a href="/sifremi-unuttum" style="font-size:14px">Şifremi unuttum</a></div>
+<input id="sifre" name="sifre" type="password" autocomplete="current-password" required></div>
+<button class="dugme" style="margin-top:8px">Giriş yap</button>
+</form>
+<div class="alt-kart"><span>Hesabın yok mu?</span><a href="/kayit">Üye ol</a></div>`, hata ? 400 : 200);
 }
 
 // ---------- Giriş ----------
@@ -84,15 +95,19 @@ async function giris(request, env) {
 
 // ---------- Kayıt ----------
 function kayitFormu(mesaj = "", hata = false, kadi = "") {
-  return sayfaYap("EPG Üyelik", `${mesajKutusu(mesaj, hata)}
-<div class="panel"><form method="post" class="dikey">
-<input name="kadi" placeholder="Kullanıcı adı" autocapitalize="none" autocomplete="username" required maxlength="20" value="${kac(kadi)}">
-<input name="sifre" type="password" placeholder="Şifre (en az 8 karakter)" autocomplete="new-password" required minlength="8" maxlength="100">
-<input name="sifre2" type="password" placeholder="Şifre (tekrar)" autocomplete="new-password" required>
-<button>Üye ol</button></form>
-<p class="soluk">Kullanıcı adı 3–20 karakter olmalı: küçük harf (Türkçe karakter olmadan), rakam, nokta ya da alt çizgi.
-Üyeliğiniz yönetici onayladıktan sonra açılır.</p></div>
-<p><a href="/giris">Zaten üyeyim, giriş yap</a></p>`, hata ? 400 : 200);
+  return girisIskelet("Üye ol", '<a href="/giris" style="font-size:14px">Giriş yap</a>', "Üye ol",
+    "Hesabın yönetici onayından sonra açılır. Onaylanınca yayın akışı adresin panelinde görünür.",
+    mesaj, hata ? "hata" : "bilgi", `<form method="post" class="alanlar">
+<div class="alan"><label for="kadi">Kullanıcı adı</label>
+<input id="kadi" name="kadi" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" required maxlength="20" value="${kac(kadi)}">
+<span class="ipucu">3–20 karakter: küçük harf (Türkçe karakter olmadan), rakam, nokta ya da alt çizgi</span></div>
+<div class="alan"><label for="sifre">Şifre</label>
+<input id="sifre" name="sifre" type="password" autocomplete="new-password" required minlength="8" maxlength="100" oninput="guc(this)">
+<div class="guc" aria-hidden="true"><i></i><i></i><i></i></div><span class="ipucu">En az 8 karakter</span></div>
+<div class="alan"><label for="sifre2">Şifre (tekrar)</label>
+<input id="sifre2" name="sifre2" type="password" autocomplete="new-password" required></div>
+<button class="dugme" style="margin-top:8px">Üye ol</button>
+</form>`, hata ? 400 : 200);
 }
 
 async function kayit(request, env) {
@@ -113,12 +128,12 @@ async function kayit(request, env) {
 
 // ---------- Şifremi unuttum ----------
 async function unuttum(request, env) {
-  const form = (mesaj = "") => sayfaYap("Şifremi unuttum", `${mesajKutusu(mesaj)}
-<div class="panel"><form method="post" class="dikey">
-<input name="kadi" placeholder="Kullanıcı adı" autocapitalize="none" required>
-<button>Gönder</button></form>
-<p class="soluk">Talebiniz yöneticiye iletilir. Yönetici size geçici bir şifre verecek; onunla giriş yapıp şifrenizi değiştirin.</p></div>
-<p><a href="/giris">Girişe dön</a></p>`);
+  const form = (mesaj = "") => girisIskelet("Şifremi unuttum", '<a href="/giris" style="font-size:14px">Giriş yap</a>', "Şifremi unuttum",
+    "Talebin yöneticiye iletilir. Yönetici sana geçici bir şifre verecek; onunla giriş yapıp şifreni değiştir.",
+    mesaj, "iyi", `<form method="post" class="alanlar">
+${KADI_ALANI("", "username")}
+<button class="dugme" style="margin-top:8px">Talep gönder</button>
+</form>`);
   if (request.method !== "POST") return form();
   const f = await request.formData();
   const kadi = String(f.get("kadi") || "").trim().toLowerCase();
@@ -132,7 +147,7 @@ async function unuttum(request, env) {
     }
   }
   // Kullanıcı adı var mı yok mu belli etmemek için her durumda aynı cevap
-  return form("Talebiniz yöneticiye iletildi.");
+  return form("Talebin yöneticiye iletildi.");
 }
 
 // ---------- Kullanıcı paneli ----------
@@ -158,7 +173,7 @@ async function panel(request, env, url) {
         Object.assign(u, await sifreOzetle(yeni));
         u.gecici = false;
         await uyeKaydet(env, u);
-        mesaj = "Şifreniz değiştirildi.";
+        mesaj = "Şifren değiştirildi.";
       }
     }
     if (islem === "yenile") {
@@ -171,38 +186,76 @@ async function panel(request, env, url) {
         await env.EPG.delete(KUL + u.kod);
         u.kod = yeniKod;
         await uyeKaydet(env, u);
-        mesaj = "Token yenilendi. Eski adres artık çalışmaz; IPTV uygulamanızdaki EPG adresini yenisiyle değiştirin.";
+        mesaj = "Token yenilendi. Eski adres artık çalışmaz; IPTV uygulamandaki EPG adresini yenisiyle değiştir.";
       }
     }
   }
 
   const k = u.kod ? await env.EPG.get(KUL + u.kod, { type: "json" }) : null;
-  let durumBolumu;
+  const ustBar = `<header class="ust-bar"><div>${marka(20)}<div class="sag">
+<span class="avatar" aria-hidden="true">${kac(u.kadi[0])}</span>
+<form method="post"><input type="hidden" name="islem" value="cikis"><button class="ikon-dugme" aria-label="Çıkış" title="Çıkış">${IKON.cikis}</button></form>
+</div></div></header>`;
+  const kutuBas = (ikon, zemin, renk, baslik) =>
+    `<div class="kutu-bas"><span class="kutu-ikon" style="background:var(${zemin});color:var(${renk})">${ikon}</span><h2>${baslik}</h2></div>`;
+
+  let bolumler = "";
   if (u.durum === "bekliyor") {
-    durumBolumu = `<div class="kart bekliyor"><div class="ust"><b>${kac(u.kadi)}</b><span class="rozet">Onay bekliyor</span></div>
-<div class="soluk">Üyeliğiniz yönetici onayından sonra açılacak. EPG adresiniz burada görünecek.</div></div>`;
+    bolumler = `<section class="kutu bekle-orta">
+<span class="bekle-ikon">${IKON.saat}</span>
+<span class="rozet bekliyor" style="align-self:center">Onay bekliyor</span>
+<h2>Üyeliğin incelemede</h2>
+<p style="font-size:15px">Yönetici onayladığında EPG adresin ve bitiş tarihin burada görünecek. Bu sayfayı daha sonra yenileyerek kontrol edebilirsin.</p>
+</section>
+<section class="kutu"><h2 style="font-size:16px">Sırada ne var?</h2>
+<div class="adim"><span class="adim-no bitti">${IKON.tamam}</span><div><b>Kayıt alındı</b><br><span>${tarihYaz(u.kayit)}</span></div></div>
+<div class="adim"><span class="adim-no simdi">2</span><div><b>Yönetici onayı</b><br><span>Süre (6 ay ya da 1 yıl) onayla birlikte verilir</span></div></div>
+<div class="adim"><span class="adim-no">3</span><div><b>EPG adresini al</b><br><span>IPTV uygulamana EPG kaynağı olarak gir</span></div></div>
+</section>`;
   } else if (!k) {
-    durumBolumu = `<div class="kart doldu"><div class="ust"><b>${kac(u.kadi)}</b><span class="rozet">Kapalı</span></div>
-<div class="soluk">EPG erişiminiz kapatılmış. Yöneticiyle görüşün.</div></div>`;
+    bolumler = `<section class="kutu"><span class="rozet kapali">Kapalı</span><h2 style="font-size:18px">EPG erişimin kapatılmış</h2><p>Bilgi için yöneticiyle görüş.</p></section>`;
   } else {
     const d = durum(k);
-    durumBolumu = `<div class="kart ${d}"><div class="ust"><b>${kac(u.kadi)}</b><span class="rozet">${DURUM_YAZI[d]}</span></div>
-<div>Bitiş: ${kac(k.bitis)}${d === "aktif" ? ` (${kalanGun(k.bitis)} gün kaldı)` : ""}</div>
-${d === "doldu" ? '<div class="soluk">Süreniz doldu. Uzatmak için yöneticiyle görüşün.</div>' : ""}
-<div style="margin-top:8px">EPG adresiniz (IPTV uygulamanıza EPG kaynağı olarak girin):</div>
-${adresKutusu(adresi(url.origin, u.kod, u.kadi))}
-<form method="post" onsubmit="return confirm('Yeni adres oluşturulacak ve eski adres çalışmayacak. IPTV uygulamanızdaki EPG adresini yenisiyle değiştirmeniz gerekecek. Devam edilsin mi?')">
-<input type="hidden" name="islem" value="yenile"><button class="ikincil">Token yenile</button></form></div>`;
+    const kalan = Math.max(0, kalanGun(k.bitis));
+    const toplam = Math.max(1, Math.round((Date.parse(k.bitis) - Date.parse(k.olusturma || bugun())) / 86400000));
+    const adres = adresi(url.origin, u.kod, u.kadi);
+    bolumler = `<section class="kutu durum-kutu">
+${halka(d === "aktif" ? kalan : 0, d === "aktif" ? kalan / toplam : 0)}
+<div class="durum-bilgi">
+<span class="rozet ${d}">${d === "aktif" ? "● " : ""}${DURUM_YAZI[d]}</span>
+<span class="etiket">Bitiş tarihi</span><span class="deger">${tarihYaz(k.bitis)}</span>
+<span class="etiket" style="margin-top:4px">${d === "aktif" ? "Süre uzatma için yöneticiyle görüş." : d === "doldu" ? "Süren doldu. Uzatmak için yöneticiyle görüş." : "Erişimin durduruldu. Yöneticiyle görüş."}</span>
+</div></section>
+<section class="kutu">
+${kutuBas(IKON.link, "--vurgu-acik", "--vurgu-yazi", "EPG adresin")}
+<p>IPTV uygulamana EPG kaynağı olarak bu adresi gir.</p>
+<div class="adres">${kac(adres)}</div>
+<button type="button" class="dugme" data-adres="${kac(adres)}" onclick="kopyala(this)">${IKON.kopya}<span>Adresi kopyala</span></button>
+</section>
+<section class="kutu">
+${kutuBas(IKON.yenile, "--turuncu-acik", "--turuncu", "Token yenile")}
+<p>Adresin başkasının eline geçtiyse yenile. Eski adres hemen kapanır; uygulamandaki EPG adresini yenisiyle değiştirmen gerekir.</p>
+${k.sonYenileme ? `<span class="ipucu">Son yenileme: ${tarihYaz(k.sonYenileme)}</span>` : ""}
+<form method="post" onsubmit="return confirm('Yeni adres oluşturulacak ve eski adres hemen kapanacak. IPTV uygulamandaki EPG adresini yenisiyle değiştirmen gerekecek. Devam edilsin mi?')">
+<input type="hidden" name="islem" value="yenile"><button class="dugme ikincil">Yeni token oluştur</button></form>
+</section>`;
   }
 
-  return sayfaYap("EPG Panel", `${mesajKutusu(mesaj, hata)}
-${u.gecici ? mesajKutusu("Geçici şifreyle giriş yaptınız. Lütfen aşağıdan şifrenizi değiştirin.", true) : ""}
-${durumBolumu}
-<h2>Şifre değiştir</h2>
-<div class="panel"><form method="post" class="dikey"><input type="hidden" name="islem" value="sifre">
-${geciciOturum && u.gecici ? "" : '<input name="mevcut" type="password" placeholder="Mevcut şifre" autocomplete="current-password" required>'}
-<input name="yeni" type="password" placeholder="Yeni şifre (en az 8 karakter)" autocomplete="new-password" required minlength="8" maxlength="100">
-<input name="yeni2" type="password" placeholder="Yeni şifre (tekrar)" autocomplete="new-password" required>
-<button>Değiştir</button></form></div>
-<form method="post"><input type="hidden" name="islem" value="cikis"><button class="ikincil">Çıkış</button></form>`, hata ? 400 : 200);
+  const geciciGiris = geciciOturum && u.gecici;
+  bolumler += `<section class="kutu" id="sifre">
+${kutuBas(IKON.kilit, "--gri-acik", "--gri", "Şifre değiştir")}
+<form method="post" class="alanlar" style="margin-top:0"><input type="hidden" name="islem" value="sifre">
+${geciciGiris ? "" : '<div class="alan"><label for="mevcut">Mevcut şifre</label><input id="mevcut" name="mevcut" type="password" autocomplete="current-password" required></div>'}
+<div class="alan"><label for="yeni">Yeni şifre</label><input id="yeni" name="yeni" type="password" autocomplete="new-password" required minlength="8" maxlength="100"></div>
+<div class="alan"><label for="yeni2">Yeni şifre (tekrar)</label><input id="yeni2" name="yeni2" type="password" autocomplete="new-password" required></div>
+<button class="dugme ikincil">Şifreyi değiştir</button>
+</form></section>`;
+
+  return html(uyeSablon("Panel", `${ustBar}
+<main class="icerik">
+<div class="selam">Merhaba,<h1>${kac(u.kadi)}</h1></div>
+${uyari(mesaj, hata ? "hata" : "iyi")}
+${u.gecici ? uyari("Geçici şifreyle giriş yaptın. Lütfen aşağıdan kendi şifreni belirle.", "hata") : ""}
+${bolumler}
+</main>`), hata ? 400 : 200);
 }
