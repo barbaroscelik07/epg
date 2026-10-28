@@ -27,19 +27,21 @@ function cerez(request, ad) {
   return m ? m[1] : "";
 }
 
-async function oturumAc(env, kadi) {
+// gecici=true: bu oturum geçici şifreyle açıldı (şifre değiştirirken mevcut şifre sorulmaz)
+async function oturumAc(env, kadi, gecici = false) {
   const anahtar = rastgele(32);
-  await env.EPG.put(OTURUM + anahtar, kadi, { expirationTtl: OTURUM_GUN * 86400 });
+  await env.EPG.put(OTURUM + anahtar, gecici ? kadi + "#gecici" : kadi, { expirationTtl: OTURUM_GUN * 86400 });
   return `oturum=${anahtar}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${OTURUM_GUN * 86400}`;
 }
 
 async function oturumKullanici(request, env) {
   const anahtar = cerez(request, "oturum");
   if (!/^[a-z0-9]{32}$/.test(anahtar)) return null;
-  const kadi = await env.EPG.get(OTURUM + anahtar);
-  if (!kadi) return null;
+  const deger = await env.EPG.get(OTURUM + anahtar);
+  if (!deger) return null;
+  const [kadi, isaret] = deger.split("#");
   const u = await uyeAl(env, kadi);
-  return u ? { u, anahtar } : null;
+  return u ? { u, anahtar, geciciOturum: isaret === "gecici" && !!u.gecici } : null;
 }
 
 const CEREZ_SIL = "oturum=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0";
@@ -77,7 +79,7 @@ async function giris(request, env) {
     return girisFormu("Kullanıcı adı ya da şifre yanlış.", true, kadi);
   }
   if (deneme) await env.EPG.delete(denemeAnahtar);
-  return git("/panel", { "set-cookie": await oturumAc(env, kadi) });
+  return git("/panel", { "set-cookie": await oturumAc(env, kadi, !!u.gecici) });
 }
 
 // ---------- Kayıt ----------
@@ -137,7 +139,7 @@ async function unuttum(request, env) {
 async function panel(request, env, url) {
   const o = await oturumKullanici(request, env);
   if (!o) return git("/giris");
-  const { u, anahtar } = o;
+  const { u, anahtar, geciciOturum } = o;
   let mesaj = "", hata = false;
 
   if (request.method === "POST") {
@@ -149,7 +151,7 @@ async function panel(request, env, url) {
     }
     if (islem === "sifre") {
       const yeni = String(f.get("yeni") || "");
-      if (!(await sifreDogru(u, String(f.get("mevcut") || "")))) { mesaj = "Mevcut şifre yanlış."; hata = true; }
+      if (!geciciOturum && !(await sifreDogru(u, String(f.get("mevcut") || "")))) { mesaj = "Mevcut şifre yanlış."; hata = true; }
       else if (yeni.length < 8 || yeni.length > 100) { mesaj = "Yeni şifre en az 8 karakter olmalı."; hata = true; }
       else if (yeni !== String(f.get("yeni2") || "")) { mesaj = "Yeni şifreler aynı değil."; hata = true; }
       else {
@@ -198,7 +200,7 @@ ${u.gecici ? mesajKutusu("Geçici şifreyle giriş yaptınız. Lütfen aşağıd
 ${durumBolumu}
 <h2>Şifre değiştir</h2>
 <div class="panel"><form method="post" class="dikey"><input type="hidden" name="islem" value="sifre">
-<input name="mevcut" type="password" placeholder="Mevcut şifre" autocomplete="current-password" required>
+${geciciOturum && u.gecici ? "" : '<input name="mevcut" type="password" placeholder="Mevcut şifre" autocomplete="current-password" required>'}
 <input name="yeni" type="password" placeholder="Yeni şifre (en az 8 karakter)" autocomplete="new-password" required minlength="8" maxlength="100">
 <input name="yeni2" type="password" placeholder="Yeni şifre (tekrar)" autocomplete="new-password" required>
 <button>Değiştir</button></form></div>
