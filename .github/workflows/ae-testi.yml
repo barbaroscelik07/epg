@@ -1,0 +1,70 @@
+name: Analytics Engine testi (tek seferlik)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      ADRES: https://epg-ae-testi.epgdeposu.workers.dev
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Deneme sunucusunu kur
+        run: |
+          mkdir -p t/src && cd t
+          cat > wrangler.toml <<'T'
+          name = "epg-ae-testi"
+          main = "src/index.js"
+          compatibility_date = "2026-09-01"
+          workers_dev = true
+
+          [[analytics_engine_datasets]]
+          binding = "OLAY"
+          dataset = "epg_ae_testi"
+          T
+          cat > src/index.js <<'T'
+          export default {
+            async fetch(req, env) {
+              const ip = req.headers.get("cf-connecting-ip") || "yok";
+              env.OLAY.writeDataPoint({ indexes: ["deneme"], blobs: ["deneme", ip], doubles: [1] });
+              return new Response("yazildi");
+            },
+          };
+          T
+          set +e
+          npx --yes wrangler@4 deploy > kur.log 2>&1; DURUM=$?
+          cat kur.log
+          if [ $DURUM -ne 0 ]; then
+            echo "::notice title=Kurulum basarisiz::$(grep -iE 'error|✘|analytics' kur.log | head -3 | tr '\n' ' ' | cut -c1-400)"
+            exit 1
+          fi
+          echo "::notice title=Kurulum::basarili (Analytics Engine baglantisi kabul edildi)"
+          for i in $(seq 1 30); do curl -fs "$ADRES/" && break; sleep 10; done
+
+      - name: Veri yaz
+        run: |
+          ok=0; for i in $(seq 1 10); do curl -fs "$ADRES/" > /dev/null && ok=$((ok+1)); done
+          echo "::notice title=Yazma::10 istekten $ok tanesi basarili"
+
+      - name: Veriyi oku (SQL API)
+        run: |
+          sleep 90
+          for deneme in 1 2 3; do
+            CEVAP=$(curl -sS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/analytics_engine/sql" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              --data "SELECT count() AS adet, count(DISTINCT blob2) AS ip FROM epg_ae_testi WHERE index1 = 'deneme' FORMAT JSON")
+            echo "$CEVAP" | head -c 600; echo
+            if echo "$CEVAP" | grep -q '"adet"'; then break; fi
+            sleep 60
+          done
+          echo "::notice title=Okuma::$(echo "$CEVAP" | tr -d '\n' | cut -c1-400)"
+
+      - name: Deneme sunucusunu sil
+        if: always()
+        run: cd t && npx --yes wrangler@4 delete --name epg-ae-testi --force || true
