@@ -125,7 +125,7 @@ function sayfa(origin, kisiler, bekleyen, sifirlama, acik, mesaj, yeniKod) {
   <div class="ust"><b>${kac(k.ad)}</b><span class="rozet">${DURUM_YAZI[d]}</span></div>
   <div>Bitiş: ${kac(k.bitis)}${d === "aktif" ? ` (${kalanGun(k.bitis)} gün kaldı)` : ""}</div>
   ${k.uye ? `<div class="soluk">Üye: ${kac(k.uye)}${k.sonYenileme ? ` · Son token yenileme: ${kac(k.sonYenileme)}` : ""}</div>` : ""}
-  ${adresKutusu(adresi(origin, k.anahtar))}
+  ${adresKutusu(adresi(origin, k.anahtar, k.uye))}
   <div class="butonlar">
     ${form({ islem: "uzat", kod: k.anahtar, sure: "6" }, "+6 ay")}
     ${form({ islem: "uzat", kod: k.anahtar, sure: "12" }, "+1 yıl")}

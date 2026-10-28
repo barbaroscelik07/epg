@@ -76,8 +76,9 @@ export function esit(a, b) {
   return f === 0;
 }
 
-export function adresi(origin, kod) {
-  return `${origin}/k/${kod}/guide.xml.gz`;
+// Üyelerde kullanıcı adı da adreste görünür (hatırlatma için; erişimi sağlayan koddur)
+export function adresi(origin, kod, kadi = "") {
+  return kadi ? `${origin}/k/${kadi}/${kod}/guide.xml.gz` : `${origin}/k/${kod}/guide.xml.gz`;
 }
 
 // ---------- KV kayıtları ----------

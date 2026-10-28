@@ -14,11 +14,12 @@ export default {
     const uyeCevap = await uyeYolu(request, env, url);
     if (uyeCevap) return uyeCevap;
 
-    // Kişiye özel adres: /k/<kod>/guide.xml.gz veya /k/<kod>/guide.xml
-    const m = yol.match(/^\/k\/([A-Za-z0-9_-]{6,64})(\/.*)?$/);
+    // Kişiye özel adres: /k/<kadi>/<kod>/guide.xml(.gz)  (üyeler)  veya  /k/<kod>/guide.xml(.gz)
+    const u = yol.match(/^\/k\/([a-z0-9_.]{3,20})\/([A-Za-z0-9_-]{6,64})\/guide\.xml(\.gz)?$/);
+    const m = u ? [null, u[2], u[3] ? "/guide.xml.gz" : "/guide.xml"] : yol.match(/^\/k\/([A-Za-z0-9_-]{6,64})(\/.*)?$/);
     if (m) {
       const k = await env.EPG.get(KUL + m[1], { type: "json" });
-      if (!k) return metin("Gecersiz adres", 404);
+      if (!k || (u && k.uye !== u[1])) return metin("Gecersiz adres", 404);  // ad ile kod eşleşmeli
       const d = durum(k);
       if (d !== "aktif") return metin(d === "durduruldu" ? "Erisim durduruldu" : "Erisim suresi doldu", 403);
       return epg(env, (m[2] || "").endsWith(".xml") ? "xml" : "gz");

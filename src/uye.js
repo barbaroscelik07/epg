@@ -190,7 +190,7 @@ async function panel(request, env, url) {
 <div>Bitiş: ${kac(k.bitis)}${d === "aktif" ? ` (${kalanGun(k.bitis)} gün kaldı)` : ""}</div>
 ${d === "doldu" ? '<div class="soluk">Süreniz doldu. Uzatmak için yöneticiyle görüşün.</div>' : ""}
 <div style="margin-top:8px">EPG adresiniz (IPTV uygulamanıza EPG kaynağı olarak girin):</div>
-${adresKutusu(adresi(url.origin, u.kod))}
+${adresKutusu(adresi(url.origin, u.kod, u.kadi))}
 <form method="post" onsubmit="return confirm('Yeni adres oluşturulacak ve eski adres çalışmayacak. IPTV uygulamanızdaki EPG adresini yenisiyle değiştirmeniz gerekecek. Devam edilsin mi?')">
 <input type="hidden" name="islem" value="yenile"><button class="ikincil">Token yenile</button></form></div>`;
   }
