@@ -9,6 +9,15 @@ id = "KV_ID_BURAYA"
 [observability]
 enabled = true
 
+# EPG indirme kayıtları (paylaşılan adresleri fark etmek için)
+[[analytics_engine_datasets]]
+binding = "OLAY"
+dataset = "epg_ae_testi"
+
+# Kayıtları yönetim sayfasından okumak için (API anahtarı gerekmez)
+[analytics]
+binding = "ANALIZ"
+
 # Logolar: public/logo/*.png -> https://epg.epgdeposu.workers.dev/logo/<kanal>.png
 [assets]
 directory = "./public"

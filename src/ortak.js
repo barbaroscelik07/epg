@@ -97,6 +97,11 @@ export async function uyeKaydet(env, u) {
   });
 }
 
+// İndirme kaydı ve istatistik anahtarı: üyelerde kullanıcı adı (token yenilense de aynı kalır), diğerlerinde kod
+export function kimAnahtari(kod, k) {
+  return k.uye ? "u:" + k.uye : "k:" + kod;
+}
+
 // Letgo ürün tutarına göre hediye EPG süresi
 export const PLANLAR = [{ tutar: 150, ay: 3 }, { tutar: 200, ay: 6 }, { tutar: 250, ay: 12 }];
 export function sureYaz(ay) {

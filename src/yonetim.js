@@ -1,7 +1,7 @@
 // Yönetim sayfası (yalnızca yönetici şifresiyle)
 import {
   KUL, UYE, metin, html, git, bugun, simdi, ayEkle, kalanGun, durum, DURUM_YAZI, rastgele, bosKodBul,
-  kac, esit, adresi, kaydet, uyeAl, uyeKaydet, listele, sifreOzetle, ayniSite, sureYaz, aySec,
+  kac, esit, adresi, kaydet, uyeAl, uyeKaydet, listele, sifreOzetle, ayniSite, sureYaz, aySec, kimAnahtari,
 } from "./ortak.js";
 import { uyeSablon, marka, uyari, tarihYaz, IKON } from "./gorunum.js";
 
@@ -112,17 +112,40 @@ function yonlendir(mesaj, yeniKod = "") {
   return git("/yonetim?" + q);
 }
 
+// Son 7 günün indirme istatistiği: kim -> { adet, ip }. Alınamazsa null (sayfa yine açılır).
+async function istatistik(env) {
+  if (!env.ANALIZ) return null;
+  try {
+    const bas = new Date(Date.now() - 7 * 86400000).toISOString();
+    const r = await env.ANALIZ.query({
+      query: `SELECT blob1 AS kim, COUNT(*) AS adet, COUNT(DISTINCT blob2) AS ip
+FROM events.analyticsEngine.epg_ae_testi
+WHERE timestamp >= $bas AND blob3 = 'indirme'
+GROUP BY blob1 LIMIT 10000`,
+      params: { bas },
+    });
+    const sonuc = {};
+    for (const s of r.data || []) sonuc[s.kim] = { adet: Math.round(Number(s.adet) || 0), ip: Math.round(Number(s.ip) || 0) };
+    return sonuc;
+  } catch (e) {
+    console.log("istatistik alinamadi:", e && e.message);
+    return null;
+  }
+}
+
 async function sayfaGoster(env, url, mesaj, yeniKod = "", gecici = null) {
-  const [kisiler, uyeler, acikDeger] = await Promise.all([listele(env, KUL), listele(env, UYE), env.EPG.get("acik-erisim")]);
+  const [kisiler, uyeler, acikDeger, ist] = await Promise.all([listele(env, KUL), listele(env, UYE), env.EPG.get("acik-erisim"), istatistik(env)]);
   const bekleyen = uyeler.filter((u) => u.durum === "bekliyor");
   const sifirlama = uyeler.filter((u) => u.sifirlama);
   const odemeler = uyeler.filter((u) => u.durum === "onayli" && u.odeme);
-  return html(sayfa(url.origin, kisiler, bekleyen, sifirlama, odemeler, acikDeger !== "kapali", mesaj, yeniKod, gecici));
+  return html(sayfa(url.origin, kisiler, bekleyen, sifirlama, odemeler, acikDeger !== "kapali", mesaj, yeniKod, gecici, ist));
 }
 
 const YAKLASAN_GUN = 14;
 
-function sayfa(origin, kisiler, bekleyen, sifirlama, odemeler, acik, mesaj, yeniKod, gecici) {
+const SUPHE_IP = 8;   // 7 günde bu kadar ya da daha fazla farklı bağlantı: adres paylaşılıyor olabilir
+
+function sayfa(origin, kisiler, bekleyen, sifirlama, odemeler, acik, mesaj, yeniKod, gecici, ist) {
   const form = (alanlar, yazi, sinif = "kucuk", onay = "") =>
     `<form method="post"${onay ? ` onsubmit="return confirm('${kac(onay)}')"` : ""}>${Object.entries(alanlar)
       .map(([a, v]) => `<input type="hidden" name="${a}" value="${kac(v)}">`).join("")}<button class="${sinif}">${yazi}</button></form>`;
@@ -134,7 +157,8 @@ function sayfa(origin, kisiler, bekleyen, sifirlama, odemeler, acik, mesaj, yeni
     const d = durum(k);
     const kalan = kalanGun(k.bitis);
     const yaklasan = d === "aktif" && kalan <= YAKLASAN_GUN;
-    return { ...k, d, kalan, yaklasan };
+    const kullanim = ist ? ist[kimAnahtari(k.anahtar, k)] || { adet: 0, ip: 0 } : null;
+    return { ...k, d, kalan, yaklasan, kullanim, suphe: !!kullanim && kullanim.ip >= SUPHE_IP };
   }).sort((a, b) => (a.d === "aktif" ? 0 : 1) - (b.d === "aktif" ? 0 : 1) || a.bitis.localeCompare(b.bitis));
   const say = {
     aktif: liste.filter((k) => k.d === "aktif").length,
@@ -146,10 +170,14 @@ function sayfa(origin, kisiler, bekleyen, sifirlama, odemeler, acik, mesaj, yeni
     const rozet = k.yaklasan ? `<span class="rozet bekliyor">${k.kalan} gün kaldı</span>` : `<span class="rozet ${k.d}">${DURUM_YAZI[k.d]}</span>`;
     const alt = [k.uye ? `Üye: ${kac(k.uye)}` : "Üyeliksiz", `Bitiş: ${tarihYaz(k.bitis)}${k.d === "aktif" && !k.yaklasan ? ` · ${k.kalan} gün` : ""}`]
       .concat(k.sonYenileme ? [`Son token yenileme: ${tarihYaz(k.sonYenileme)}`] : []).join(" · ");
-    const durumlar = [k.d, k.yaklasan ? "yaklasan" : "", k.d !== "aktif" ? "bitti" : ""].join(" ").trim();
+    const durumlar = [k.d, k.yaklasan ? "yaklasan" : "", k.d !== "aktif" ? "bitti" : "", k.suphe ? "suphe" : ""].join(" ").trim();
+    const kullanimSatiri = k.kullanim
+      ? `<div class="${k.suphe ? "uyari hata" : "ipucu"}" style="margin-top:0">Son 7 gün: ${k.kullanim.adet} indirme · ${k.kullanim.ip} farklı bağlantı${k.suphe ? " — adres paylaşılıyor olabilir" : ""}</div>`
+      : "";
     const aranan = `${k.ad} ${k.uye || ""}`.toLocaleLowerCase("tr");
     return `<section class="kutu" data-kisi data-durum="${durumlar}" data-ara="${kac(aranan)}">
 <div class="kisi-ust"><div><div class="kisi-ad">${kac(k.ad)}</div><div class="kisi-alt">${alt}</div></div>${rozet}</div>
+${kullanimSatiri}
 <div class="adres-satir"><div class="adres">${kac(adresi(origin, k.anahtar, k.uye))}</div>${kopyaDugme(adresi(origin, k.anahtar, k.uye))}</div>
 <div class="satir">
 ${form({ islem: "uzat", kod: k.anahtar, sure: "3" }, `${IKON.arti}3 ay`, "kucuk ana")}
@@ -224,10 +252,12 @@ ${sifirlama.length ? `<div class="bolum-bas"><h2>Şifre sıfırlama istekleri<sp
 <button type="button" data-f="aktif" aria-pressed="false" onclick="filtre(this)">Aktif</button>
 <button type="button" data-f="yaklasan" aria-pressed="false" onclick="filtre(this)">Yakında bitecek</button>
 <button type="button" data-f="bitti" aria-pressed="false" onclick="filtre(this)">Dolan / durdurulan</button>
+${ist ? `<button type="button" data-f="suphe" aria-pressed="false" onclick="filtre(this)">Çok bağlantı (${liste.filter((k) => k.suphe).length})</button>` : ""}
 </div>
 ${liste.map(kart).join("\n") || '<div class="kutu bos">Henüz kimse yok.</div>'}
 <div class="kutu bos" id="sonuc-yok" hidden>Bu aramaya uyan kişi yok.</div>
-<p class="ipucu">Yeni kayıtlar ve değişiklikler listede ve adreste 1 dakikaya kadar gecikmeyle görünebilir.</p>
+<p class="ipucu">Yeni kayıtlar ve değişiklikler listede ve adreste 1 dakikaya kadar gecikmeyle görünebilir.
+${ist ? `İndirme sayıları birkaç dakika gecikmeli gelir. 7 günde ${SUPHE_IP} ve üzeri farklı bağlantı kırmızı işaretlenir; bu kesin kanıt değildir (mobil hatlarda bağlantı sık değişir).` : "İndirme istatistiği şu an alınamıyor."}</p>
 
 <div class="bolum-bas"><h2>Ekle ve paylaş</h2></div>
 <section class="kutu">

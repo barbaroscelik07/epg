@@ -1,5 +1,5 @@
 // EPG sunucusu: kişiye özel süreli adresler, üyelik sitesi, yönetim sayfası, box yükleme
-import { KUL, metin, git, durum } from "./ortak.js";
+import { KUL, metin, git, durum, kimAnahtari } from "./ortak.js";
 import { yonetim } from "./yonetim.js";
 import { uyeYolu } from "./uye.js";
 import { telegram } from "./telegram.js";
@@ -24,6 +24,12 @@ export default {
       if (!k || (u && k.uye !== u[1])) return metin("Gecersiz adres", 404);  // ad ile kod eşleşmeli
       const d = durum(k);
       if (d !== "aktif") return metin(d === "durduruldu" ? "Erisim durduruldu" : "Erisim suresi doldu", 403);
+      if (env.OLAY) {   // indirme kaydı (beklemeden yazılır, isteği yavaşlatmaz)
+        try {
+          const kim = kimAnahtari(m[1], k);
+          env.OLAY.writeDataPoint({ indexes: [kim], blobs: [kim, request.headers.get("cf-connecting-ip") || "", "indirme"], doubles: [1] });
+        } catch { /* kayıt yazılamasa da EPG verilir */ }
+      }
       return epg(env, (m[2] || "").endsWith(".xml") ? "xml" : "gz");
     }
 
