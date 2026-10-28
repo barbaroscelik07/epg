@@ -162,7 +162,7 @@ export function anaSayfa() {
 
 <section class="bolum">
 <h2>Popüler kanallar</h2>
-<p class="alt">Görselde en bilinen kanallar var. Listede toplam 240 kanal bulunuyor.</p>
+<p class="alt">Listede toplam 240 kanal bulunuyor.</p>
 ${KANALLAR}
 </section>
 
