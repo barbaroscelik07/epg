@@ -134,3 +134,15 @@ jobs:
               echo "$ad secret'i yok, atlandi"
             fi
           done
+          # Telegram destek hattı: botun mesajları sunucuya iletmesini ayarla, bot adını kaydet
+          if [ -n "$TELEGRAM_TOKEN" ]; then
+            GIZLI=$(printf '%s' "$TELEGRAM_TOKEN" | sha256sum | cut -c1-32)
+            curl -fsS "https://api.telegram.org/bot${TELEGRAM_TOKEN}/setWebhook" \
+              --data-urlencode "url=https://epg.epgdeposu.workers.dev/telegram" \
+              --data-urlencode "secret_token=${GIZLI}" \
+              --data-urlencode 'allowed_updates=["message"]' -o /dev/null && echo "Telegram webhook ayarlandi" || echo "Telegram webhook ayarlanamadi"
+            BOT=$(curl -fsS "https://api.telegram.org/bot${TELEGRAM_TOKEN}/getMe" | python3 -c "import json,sys; print(json.load(sys.stdin)['result']['username'])" || true)
+            if [ -n "$BOT" ]; then
+              npx --yes wrangler@4 kv key put "telegram-bot" "$BOT" --namespace-id="${CF_KV_ID}" --remote
+            fi
+          fi

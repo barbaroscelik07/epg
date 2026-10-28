@@ -130,6 +130,18 @@ main.icerik{max-width:640px;margin:0 auto;padding:24px 20px 40px;display:flex;fl
 .bilgi-satir div{flex:1;min-width:0}.bilgi-satir small{display:block;font-size:12px;color:var(--soluk)}
 .bilgi-satir b{display:block;font-size:14px;word-break:break-all}
 .bilgi-satir .kucuk{height:36px;padding:0 10px}
+details.menu{position:relative}
+details.menu summary{list-style:none;cursor:pointer;border-radius:20px}details.menu summary::-webkit-details-marker{display:none}
+details.menu summary:focus-visible{outline:2px solid var(--vurgu);outline-offset:2px}
+.menu-kutu{position:absolute;right:0;top:46px;min-width:200px;background:var(--kart);border:1px solid var(--cizgi);border-radius:14px;padding:6px;box-shadow:0 8px 24px rgba(15,23,42,.14);z-index:10;display:flex;flex-direction:column}
+.menu-ad{padding:10px 12px 8px;font-size:13px;color:var(--soluk);border-bottom:1px solid var(--cizgi);margin-bottom:4px}
+.menu-kutu a,.menu-kutu button{display:flex;align-items:center;gap:10px;height:44px;padding:0 12px;border-radius:10px;border:0;background:transparent;color:var(--yazi);font:inherit;font-size:15px;font-weight:600;cursor:pointer;width:100%;text-align:left}
+.menu-kutu a:hover,.menu-kutu button:hover{background:var(--zemin);text-decoration:none}
+.menu-kutu form{margin:0}
+details.acilir>summary{list-style:none}details.acilir>summary::-webkit-details-marker{display:none}
+details.acilir{padding:0;border:0;background:transparent}
+details.acilir[open]{padding:20px;border:1px solid var(--cizgi);background:var(--kart)}
+details.acilir[open]>summary{margin-bottom:4px}
 .sifre-goster{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:22px;font-weight:500;letter-spacing:.08em}
 .bos{padding:24px;text-align:center;color:var(--soluk);font-size:14px}
 details.daha summary{list-style:none;cursor:pointer}details.daha summary::-webkit-details-marker{display:none}
@@ -143,6 +155,8 @@ function eski(a){var t=document.createElement('textarea');t.value=a;document.bod
 function guc(i){var v=i.value,p=0;if(v.length>=8)p++;if(v.length>=12)p++;if(/[0-9]/.test(v)&&/[a-zA-Z]/.test(v)&&v.length>=10)p++;var c=document.querySelectorAll('.guc i');for(var k=0;k<c.length;k++)c[k].className=k<p?'dolu':''}
 function suz(){var q=(document.getElementById('ara')||{}).value||'';q=q.toLocaleLowerCase('tr');var f=document.querySelector('.filtre [aria-pressed="true"]');f=f?f.getAttribute('data-f'):'hepsi';var n=0;
 document.querySelectorAll('[data-kisi]').forEach(function(k){var ok=(f==='hepsi'||k.getAttribute('data-durum').split(' ').indexOf(f)>=0)&&k.getAttribute('data-ara').indexOf(q)>=0;k.hidden=!ok;if(ok)n++});var b=document.getElementById('sonuc-yok');if(b)b.hidden=n>0}
+function sifreAc(){var d=document.getElementById('sifre');if(d){d.open=true}var m=document.querySelector('details.menu');if(m)m.open=false}
+document.addEventListener('click',function(e){var m=document.querySelector('details.menu[open]');if(m&&!m.contains(e.target))m.open=false});
 function filtre(b){document.querySelectorAll('.filtre button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});suz()}
 </script>`;
 
@@ -171,6 +185,7 @@ export const IKON = {
   kilit: svg('<rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path>', 18),
   saat: svg('<circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path>', 34),
   tamam: svg('<path d="M5 12l5 5L20 7"></path>', 14),
+  mesaj: svg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>', 18),
   arti: svg('<path d="M12 5v14"></path><path d="M5 12h14"></path>', 16),
   kopyaK: svg('<rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>', 16),
 };

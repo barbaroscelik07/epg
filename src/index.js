@@ -2,6 +2,7 @@
 import { KUL, metin, git, durum } from "./ortak.js";
 import { yonetim } from "./yonetim.js";
 import { uyeYolu } from "./uye.js";
+import { telegram } from "./telegram.js";
 
 export default {
   async fetch(request, env) {
@@ -9,6 +10,7 @@ export default {
     const yol = url.pathname;
 
     if (yol.startsWith("/yukle/")) return yukle(request, env, yol);
+    if (yol === "/telegram") return telegram(request, env);
     if (yol === "/yonetim" || yol === "/yonetim/") return yonetim(request, env, url);
 
     const uyeCevap = await uyeYolu(request, env, url);

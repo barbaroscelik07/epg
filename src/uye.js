@@ -156,7 +156,7 @@ async function panel(request, env, url) {
   const o = await oturumKullanici(request, env);
   if (!o) return git("/giris");
   const { u, anahtar, geciciOturum } = o;
-  let mesaj = "", hata = false;
+  let mesaj = "", hata = false, sifreIslemi = false;
 
   if (request.method === "POST") {
     const f = await request.formData();
@@ -166,6 +166,7 @@ async function panel(request, env, url) {
       return git("/giris", { "set-cookie": CEREZ_SIL });
     }
     if (islem === "sifre") {
+      sifreIslemi = true;
       const yeni = String(f.get("yeni") || "");
       if (!geciciOturum && !(await sifreDogru(u, String(f.get("mevcut") || "")))) { mesaj = "Mevcut şifre yanlış."; hata = true; }
       else if (yeni.length < 8 || yeni.length > 100) { mesaj = "Yeni şifre en az 8 karakter olmalı."; hata = true; }
@@ -205,8 +206,12 @@ async function panel(request, env, url) {
 
   const k = u.kod ? await env.EPG.get(KUL + u.kod, { type: "json" }) : null;
   const ustBar = `<header class="ust-bar"><div>${marka(20)}<div class="sag">
-<span class="avatar" aria-hidden="true">${kac(u.kadi[0])}</span>
-<form method="post"><input type="hidden" name="islem" value="cikis"><button class="ikon-dugme" aria-label="Çıkış" title="Çıkış">${IKON.cikis}</button></form>
+<details class="menu"><summary aria-label="Kullanıcı menüsü"><span class="avatar">${kac(u.kadi[0])}</span></summary>
+<div class="menu-kutu">
+<div class="menu-ad">${kac(u.kadi)}</div>
+<a href="#sifre" onclick="sifreAc()">${IKON.kilit}Şifre değiştir</a>
+<form method="post"><input type="hidden" name="islem" value="cikis"><button>${IKON.cikis}Çıkış</button></form>
+</div></details>
 </div></div></header>`;
   const kutuBas = (ikon, zemin, renk, baslik) =>
     `<div class="kutu-bas"><span class="kutu-ikon" style="background:var(${zemin});color:var(${renk})">${ikon}</span><h2>${baslik}</h2></div>`;
@@ -266,7 +271,7 @@ ${k.sonYenileme ? `<span class="ipucu">Son yenileme: ${tarihYaz(k.sonYenileme)}<
     } else if (!env.BANKA_IBAN || !env.BANKA_ALICI) {
       icerik = `<p>Ödeme bilgileri henüz eklenmedi.</p>`;
     } else {
-      icerik = `<p>Letgo'dan aldığın ürünün ödemesini aşağıdaki hesaba gönder. Ürün tutarına göre EPG süresi hediye edilir.</p>
+      icerik = `<p>Paketini seç.</p>
 <form method="post" class="alanlar" style="margin-top:0"><input type="hidden" name="islem" value="odeme">
 <div class="plan-liste" role="radiogroup" aria-label="Ürün tutarı">
 ${PLANLAR.map((p, i) => `<label class="plan"><input type="radio" name="tutar" value="${p.tutar}"${i === 1 ? " checked" : ""}><span><b>${p.tutar} TL</b><small>${sureYaz(p.ay)} EPG</small></span></label>`).join("")}
@@ -277,19 +282,31 @@ ${satir("Açıklama (aynen yaz)", odemeAciklamasi(u.kadi))}
 <button class="dugme">Ödemeyi yaptım</button>
 </form>`;
     }
-    const baslik = u.durum === "bekliyor" ? "Ödeme ve hediye EPG" : "Süre uzat";
+    const baslik = u.durum === "bekliyor" ? "Ödeme" : "Süre uzat";
     bolumler = bolumler.replace("<!--odeme-->", `<section class="kutu">${kutuBas(IKON.kopya, "--vurgu-acik", "--vurgu-yazi", baslik)}${icerik}</section>`);
   }
 
+  // Destek (Telegram botu)
+  const bot = await env.EPG.get("telegram-bot");
+  if (bot && /^[A-Za-z0-9_]{5,32}$/.test(bot)) {
+    bolumler += `<section class="kutu">
+${kutuBas(IKON.mesaj, "--vurgu-acik", "--vurgu-yazi", "Destek")}
+<p>Sorun yaşarsan ya da bir şey sormak istersen Telegram'dan yaz, en kısa sürede cevap verilir.</p>
+<a class="dugme ikincil" href="https://t.me/${bot}" target="_blank" rel="noopener" style="text-decoration:none">${IKON.mesaj}Telegram'dan yaz</a>
+</section>`;
+  }
+
+  // Şifre değiştir: en altta bir düğme, basınca form açılır
   const geciciGiris = geciciOturum && u.gecici;
-  bolumler += `<section class="kutu" id="sifre">
-${kutuBas(IKON.kilit, "--gri-acik", "--gri", "Şifre değiştir")}
-<form method="post" class="alanlar" style="margin-top:0"><input type="hidden" name="islem" value="sifre">
+  const sifreAcik = geciciGiris || (sifreIslemi && hata);
+  bolumler += `<details class="kutu acilir" id="sifre"${sifreAcik ? " open" : ""}>
+<summary class="dugme ikincil">${IKON.kilit}Şifre değiştir</summary>
+<form method="post" class="alanlar" style="margin-top:4px"><input type="hidden" name="islem" value="sifre">
 ${geciciGiris ? "" : '<div class="alan"><label for="mevcut">Mevcut şifre</label><input id="mevcut" name="mevcut" type="password" autocomplete="current-password" required></div>'}
 <div class="alan"><label for="yeni">Yeni şifre</label><input id="yeni" name="yeni" type="password" autocomplete="new-password" required minlength="8" maxlength="100"></div>
 <div class="alan"><label for="yeni2">Yeni şifre (tekrar)</label><input id="yeni2" name="yeni2" type="password" autocomplete="new-password" required></div>
-<button class="dugme ikincil">Şifreyi değiştir</button>
-</form></section>`;
+<button class="dugme">Şifreyi değiştir</button>
+</form></details>`;
 
   return html(uyeSablon("Panel", `${ustBar}
 <main class="icerik">
