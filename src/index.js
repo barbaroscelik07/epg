@@ -3,6 +3,7 @@ import { KUL, metin, git, durum, kimAnahtari } from "./ortak.js";
 import { yonetim } from "./yonetim.js";
 import { uyeYolu } from "./uye.js";
 import { telegram } from "./telegram.js";
+import { anaSayfa, kurulumSayfasi } from "./tanitim.js";
 
 export default {
   async fetch(request, env) {
@@ -33,11 +34,12 @@ export default {
       return epg(env, (m[2] || "").endsWith(".xml") ? "xml" : "gz");
     }
 
+    if (yol === "/" && request.method === "GET") return anaSayfa();
+    if ((yol === "/kurulum" || yol === "/kurulum/") && request.method === "GET") return kurulumSayfasi();
+
     // Eski herkese açık adres (yönetim sayfasından kapatılabilir)
-    if (!["/", "/guide.xml", "/guide.xml.gz"].includes(yol)) return metin("Bulunamadi", 404);
-    if ((await env.EPG.get("acik-erisim")) === "kapali") {
-      return yol === "/" ? git("/giris") : metin("Bu adres kapatildi", 403);
-    }
+    if (!["/guide.xml", "/guide.xml.gz"].includes(yol)) return metin("Bulunamadi", 404);
+    if ((await env.EPG.get("acik-erisim")) === "kapali") return metin("Bu adres kapatildi", 403);
     return epg(env, yol.endsWith(".gz") ? "gz" : "xml");
   },
 };

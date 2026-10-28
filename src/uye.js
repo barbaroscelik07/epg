@@ -247,7 +247,7 @@ ${halka(d === "aktif" ? kalan : 0, d === "aktif" ? kalan / toplam : 0)}
 </div></section>
 <section class="kutu">
 ${kutuBas(IKON.link, "--vurgu-acik", "--vurgu-yazi", "EPG adresin")}
-<p>IPTV uygulamana EPG kaynağı olarak bu adresi gir.</p>
+<p>IPTV uygulamana EPG kaynağı olarak bu adresi gir. <a href="/kurulum">Nasıl kurulur?</a></p>
 <div class="adres">${kac(adres)}</div>
 <button type="button" class="dugme" data-adres="${kac(adres)}" onclick="kopyala(this)">${IKON.kopya}<span>Adresi kopyala</span></button>
 </section>
