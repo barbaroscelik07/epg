@@ -2,6 +2,7 @@
 import {
   KUL, UYE, OTURUM, html, git, metin, bugun, simdi, kalanGun, durum, DURUM_YAZI, rastgele, bosKodBul,
   kac, adresi, kaydet, uyeAl, uyeKaydet, listele, sifreOzetle, sifreDogru, bildir, ayniSite,
+  PLANLAR, sureYaz, odemeAciklamasi,
 } from "./ortak.js";
 import { uyeSablon, marka, uyari, halka, tarihYaz, IKON } from "./gorunum.js";
 
@@ -176,6 +177,17 @@ async function panel(request, env, url) {
         mesaj = "Şifren değiştirildi.";
       }
     }
+    if (islem === "odeme") {
+      const plan = PLANLAR.find((p) => String(p.tutar) === String(f.get("tutar")));
+      if (!plan || !["bekliyor", "onayli"].includes(u.durum)) { mesaj = "Bir tutar seç."; hata = true; }
+      else if (u.odeme) { mesaj = "Ödeme bildirimin zaten alındı, yönetici onayını bekle."; }
+      else {
+        u.odeme = { tutar: plan.tutar, ay: plan.ay, tarih: simdi() };
+        await uyeKaydet(env, u);
+        await bildir(env, `Ödeme bildirimi: ${u.kadi}\n${plan.tutar} TL · ${sureYaz(plan.ay)}\nBanka açıklaması: ${odemeAciklamasi(u.kadi)}\nKontrol edip yönetim sayfasından onaylayın.`);
+        mesaj = "Ödeme bildirimin alındı. Yönetici kontrol edip onaylayınca süren başlayacak.";
+      }
+    }
     if (islem === "yenile") {
       const eski = u.kod && (await env.EPG.get(KUL + u.kod, { type: "json" }));
       if (u.durum !== "onayli" || !eski) { mesaj = "Token yenilenemedi."; hata = true; }
@@ -207,10 +219,12 @@ async function panel(request, env, url) {
 <h2>Üyeliğin incelemede</h2>
 <p style="font-size:15px">Yönetici onayladığında EPG adresin ve bitiş tarihin burada görünecek. Bu sayfayı daha sonra yenileyerek kontrol edebilirsin.</p>
 </section>
+<!--odeme-->
 <section class="kutu"><h2 style="font-size:16px">Sırada ne var?</h2>
 <div class="adim"><span class="adim-no bitti">${IKON.tamam}</span><div><b>Kayıt alındı</b><br><span>${tarihYaz(u.kayit)}</span></div></div>
-<div class="adim"><span class="adim-no simdi">2</span><div><b>Yönetici onayı</b><br><span>Süre (6 ay ya da 1 yıl) onayla birlikte verilir</span></div></div>
-<div class="adim"><span class="adim-no">3</span><div><b>EPG adresini al</b><br><span>IPTV uygulamana EPG kaynağı olarak gir</span></div></div>
+<div class="adim"><span class="adim-no ${u.odeme ? "bitti" : "simdi"}">${u.odeme ? IKON.tamam : "2"}</span><div><b>Ödemeyi gönder ve bildir</b><br><span>${u.odeme ? `${u.odeme.tutar} TL · ${sureYaz(u.odeme.ay)} bildirildi` : "Yukarıdaki bilgilerle gönder, sonra “Ödemeyi yaptım”a bas"}</span></div></div>
+<div class="adim"><span class="adim-no${u.odeme ? " simdi" : ""}">3</span><div><b>Yönetici onayı</b><br><span>Ödeme kontrol edilince süren başlar</span></div></div>
+<div class="adim"><span class="adim-no">4</span><div><b>EPG adresini al</b><br><span>IPTV uygulamana EPG kaynağı olarak gir</span></div></div>
 </section>`;
   } else if (!k) {
     bolumler = `<section class="kutu"><span class="rozet kapali">Kapalı</span><h2 style="font-size:18px">EPG erişimin kapatılmış</h2><p>Bilgi için yöneticiyle görüş.</p></section>`;
@@ -232,6 +246,7 @@ ${kutuBas(IKON.link, "--vurgu-acik", "--vurgu-yazi", "EPG adresin")}
 <div class="adres">${kac(adres)}</div>
 <button type="button" class="dugme" data-adres="${kac(adres)}" onclick="kopyala(this)">${IKON.kopya}<span>Adresi kopyala</span></button>
 </section>
+<!--odeme-->
 <section class="kutu">
 ${kutuBas(IKON.yenile, "--turuncu-acik", "--turuncu", "Token yenile")}
 <p>Adresin başkasının eline geçtiyse yenile. Eski adres hemen kapanır; uygulamandaki EPG adresini yenisiyle değiştirmen gerekir.</p>
@@ -239,6 +254,31 @@ ${k.sonYenileme ? `<span class="ipucu">Son yenileme: ${tarihYaz(k.sonYenileme)}<
 <form method="post" onsubmit="return confirm('Yeni adres oluşturulacak ve eski adres hemen kapanacak. IPTV uygulamandaki EPG adresini yenisiyle değiştirmen gerekecek. Devam edilsin mi?')">
 <input type="hidden" name="islem" value="yenile"><button class="dugme ikincil">Yeni token oluştur</button></form>
 </section>`;
+  }
+
+  // Ödeme ve hediye EPG kartı (onay bekleyen ve onaylı üyeler)
+  if (u.durum === "bekliyor" || k) {
+    const kopya = (deger) => `<button type="button" class="kucuk" data-adres="${kac(deger)}" onclick="kopyala(this)"><span>Kopyala</span></button>`;
+    const satir = (etiket, deger) => `<div class="bilgi-satir"><div><small>${etiket}</small><b>${kac(deger)}</b></div>${kopya(deger)}</div>`;
+    let icerik;
+    if (u.odeme) {
+      icerik = uyari(`Ödeme bildirimin alındı: ${u.odeme.tutar} TL · ${sureYaz(u.odeme.ay)} (${tarihYaz(u.odeme.tarih)}). Yönetici kontrol edip onaylayacak.`, "bilgi");
+    } else if (!env.BANKA_IBAN || !env.BANKA_ALICI) {
+      icerik = `<p>Ödeme bilgileri henüz eklenmedi.</p>`;
+    } else {
+      icerik = `<p>Letgo'dan aldığın ürünün ödemesini aşağıdaki hesaba gönder. Ürün tutarına göre EPG süresi hediye edilir.</p>
+<form method="post" class="alanlar" style="margin-top:0"><input type="hidden" name="islem" value="odeme">
+<div class="plan-liste" role="radiogroup" aria-label="Ürün tutarı">
+${PLANLAR.map((p, i) => `<label class="plan"><input type="radio" name="tutar" value="${p.tutar}"${i === 1 ? " checked" : ""}><span><b>${p.tutar} TL</b><small>${sureYaz(p.ay)} EPG</small></span></label>`).join("")}
+</div>
+${satir("Alıcı adı", env.BANKA_ALICI)}
+${satir("IBAN", env.BANKA_IBAN)}
+${satir("Açıklama (aynen yaz)", odemeAciklamasi(u.kadi))}
+<button class="dugme">Ödemeyi yaptım</button>
+</form>`;
+    }
+    const baslik = u.durum === "bekliyor" ? "Ödeme ve hediye EPG" : "Süre uzat";
+    bolumler = bolumler.replace("<!--odeme-->", `<section class="kutu">${kutuBas(IKON.kopya, "--vurgu-acik", "--vurgu-yazi", baslik)}${icerik}</section>`);
   }
 
   const geciciGiris = geciciOturum && u.gecici;

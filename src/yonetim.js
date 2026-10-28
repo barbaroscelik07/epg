@@ -1,7 +1,7 @@
 // Yönetim sayfası (yalnızca yönetici şifresiyle)
 import {
   KUL, UYE, metin, html, git, bugun, simdi, ayEkle, kalanGun, durum, DURUM_YAZI, rastgele, bosKodBul,
-  kac, esit, adresi, kaydet, uyeAl, uyeKaydet, listele, sifreOzetle, ayniSite,
+  kac, esit, adresi, kaydet, uyeAl, uyeKaydet, listele, sifreOzetle, ayniSite, sureYaz, aySec,
 } from "./ortak.js";
 import { uyeSablon, marka, uyari, tarihYaz, IKON } from "./gorunum.js";
 
@@ -23,7 +23,7 @@ export async function yonetim(request, env, url) {
     if (!ayniSite(request, url)) return metin("Gecersiz istek", 403);
     const f = await request.formData();
     const islem = String(f.get("islem") || "");
-    const ay = f.get("sure") === "12" ? 12 : 6;
+    const ay = aySec(f.get("sure"));
 
     if (islem === "ekle") {
       const ad = String(f.get("ad") || "").trim().slice(0, 60);
@@ -38,7 +38,7 @@ export async function yonetim(request, env, url) {
     }
 
     // Üyelik işlemleri (kullanıcı adına göre)
-    if (["onayla", "reddet", "sifirla"].includes(islem)) {
+    if (["onayla", "reddet", "sifirla", "odeme-uzat", "odeme-sil"].includes(islem)) {
       const kadi = String(f.get("kadi") || "");
       const u = KADI.test(kadi) ? await uyeAl(env, kadi) : null;
       if (!u) return yonlendir("Üye bulunamadı");
@@ -46,9 +46,24 @@ export async function yonetim(request, env, url) {
         if (u.durum !== "bekliyor") return yonlendir(`${kadi} zaten onaylı`);
         const kod = await bosKodBul(env);
         await kaydet(env, kod, { ad: kadi, bitis: ayEkle(bugun(), ay), aktif: true, olusturma: bugun(), uye: kadi });
-        u.durum = "onayli"; u.kod = kod;
+        u.durum = "onayli"; u.kod = kod; u.odeme = null;
         await uyeKaydet(env, u);
-        return yonlendir(`${kadi} onaylandı (${ay === 12 ? "1 yıl" : "6 ay"})`);
+        return yonlendir(`${kadi} onaylandı (${sureYaz(ay)})`);
+      }
+      if (islem === "odeme-uzat") {   // aktif üyenin ödeme bildirimini onayla: süresini uzat
+        const k = u.kod ? await env.EPG.get(KUL + u.kod, { type: "json" }) : null;
+        if (!k) return yonlendir(`${kadi} için EPG kaydı bulunamadı`);
+        k.bitis = ayEkle(k.bitis > bugun() ? k.bitis : bugun(), ay);
+        k.aktif = true;
+        await kaydet(env, u.kod, k);
+        u.odeme = null;
+        await uyeKaydet(env, u);
+        return yonlendir(`${kadi}: ${sureYaz(ay)} eklendi, yeni bitiş ${k.bitis}`);
+      }
+      if (islem === "odeme-sil") {
+        u.odeme = null;
+        await uyeKaydet(env, u);
+        return yonlendir(`${kadi} için ödeme bildirimi silindi`);
       }
       if (islem === "reddet") {
         await env.EPG.delete(UYE + kadi);
@@ -71,6 +86,10 @@ export async function yonetim(request, env, url) {
       k.bitis = ayEkle(k.bitis > bugun() ? k.bitis : bugun(), ay);
       k.aktif = true;
       await kaydet(env, kod, k);
+      if (k.uye) {   // bekleyen ödeme bildirimi varsa kapat
+        const u = await uyeAl(env, k.uye);
+        if (u && u.odeme) { u.odeme = null; await uyeKaydet(env, u); }
+      }
       mesaj = `${k.ad}: yeni bitiş ${k.bitis}`;
     } else if (islem === "durdur") {
       k.aktif = false; await kaydet(env, kod, k); mesaj = `${k.ad} durduruldu`;
@@ -97,12 +116,13 @@ async function sayfaGoster(env, url, mesaj, yeniKod = "", gecici = null) {
   const [kisiler, uyeler, acikDeger] = await Promise.all([listele(env, KUL), listele(env, UYE), env.EPG.get("acik-erisim")]);
   const bekleyen = uyeler.filter((u) => u.durum === "bekliyor");
   const sifirlama = uyeler.filter((u) => u.sifirlama);
-  return html(sayfa(url.origin, kisiler, bekleyen, sifirlama, acikDeger !== "kapali", mesaj, yeniKod, gecici));
+  const odemeler = uyeler.filter((u) => u.durum === "onayli" && u.odeme);
+  return html(sayfa(url.origin, kisiler, bekleyen, sifirlama, odemeler, acikDeger !== "kapali", mesaj, yeniKod, gecici));
 }
 
 const YAKLASAN_GUN = 14;
 
-function sayfa(origin, kisiler, bekleyen, sifirlama, acik, mesaj, yeniKod, gecici) {
+function sayfa(origin, kisiler, bekleyen, sifirlama, odemeler, acik, mesaj, yeniKod, gecici) {
   const form = (alanlar, yazi, sinif = "kucuk", onay = "") =>
     `<form method="post"${onay ? ` onsubmit="return confirm('${kac(onay)}')"` : ""}>${Object.entries(alanlar)
       .map(([a, v]) => `<input type="hidden" name="${a}" value="${kac(v)}">`).join("")}<button class="${sinif}">${yazi}</button></form>`;
@@ -132,6 +152,7 @@ function sayfa(origin, kisiler, bekleyen, sifirlama, acik, mesaj, yeniKod, gecic
 <div class="kisi-ust"><div><div class="kisi-ad">${kac(k.ad)}</div><div class="kisi-alt">${alt}</div></div>${rozet}</div>
 <div class="adres-satir"><div class="adres">${kac(adresi(origin, k.anahtar, k.uye))}</div>${kopyaDugme(adresi(origin, k.anahtar, k.uye))}</div>
 <div class="satir">
+${form({ islem: "uzat", kod: k.anahtar, sure: "3" }, `${IKON.arti}3 ay`, "kucuk ana")}
 ${form({ islem: "uzat", kod: k.anahtar, sure: "6" }, `${IKON.arti}6 ay`, "kucuk ana")}
 ${form({ islem: "uzat", kod: k.anahtar, sure: "12" }, `${IKON.arti}1 yıl`, "kucuk ana")}
 ${k.aktif ? form({ islem: "durdur", kod: k.anahtar }, "Durdur") : form({ islem: "ac", kod: k.anahtar }, "Yeniden aç")}
@@ -140,12 +161,27 @@ ${form({ islem: "sil", kod: k.anahtar }, "Sil", "kucuk tehlike", `${k.ad} silins
 </div></section>`;
   };
 
+  const odemeSatiri = (u) => u.odeme
+    ? `<div class="uyari bilgi" style="margin-top:0">Ödeme bildirdi: <b>${u.odeme.tutar} TL · ${sureYaz(u.odeme.ay)}</b> (${tarihYaz(u.odeme.tarih)})<br>Banka açıklaması: ${kac("Letgo ödemesi: " + u.kadi)}</div>`
+    : `<div class="ipucu">Henüz ödeme bildirmedi.</div>`;
+  const sureDugmeleri = (u, islem) => [3, 6, 12].map((ay) =>
+    form({ islem, kadi: u.kadi, sure: String(ay) }, `${islem === "onayla" ? "Onayla" : "Onayla +"} · ${sureYaz(ay)}`,
+      !u.odeme || u.odeme.ay === ay ? "kucuk ana" : "kucuk")).join("\n");
+
   const bekleyenHtml = bekleyen.map((u) => `<section class="kutu">
 <div class="kisi-ust"><div><div class="kisi-ad">${kac(u.kadi)}</div><div class="kisi-alt">Kayıt: ${tarihYaz(u.kayit)}</div></div><span class="rozet bekliyor">Onay bekliyor</span></div>
+${odemeSatiri(u)}
 <div class="satir">
-${form({ islem: "onayla", kadi: u.kadi, sure: "6" }, "Onayla · 6 ay", "kucuk ana")}
-${form({ islem: "onayla", kadi: u.kadi, sure: "12" }, "Onayla · 1 yıl", "kucuk ana")}
+${sureDugmeleri(u, "onayla")}
 ${form({ islem: "reddet", kadi: u.kadi }, "Reddet", "kucuk tehlike", `${u.kadi} reddedilip silinsin mi?`)}
+</div></section>`).join("\n");
+
+  const odemeHtml = odemeler.map((u) => `<section class="kutu">
+<div class="kisi-ust"><div><div class="kisi-ad">${kac(u.kadi)}</div><div class="kisi-alt">Süre uzatma isteği</div></div><span class="rozet bekliyor">Ödeme bildirdi</span></div>
+${odemeSatiri(u)}
+<div class="satir">
+${sureDugmeleri(u, "odeme-uzat")}
+${form({ islem: "odeme-sil", kadi: u.kadi }, "Bildirimi sil", "kucuk tehlike", `${u.kadi} için ödeme bildirimi silinsin mi? Süresi uzatılmaz.`)}
 </div></section>`).join("\n");
 
   const sifirlamaHtml = sifirlama.map((u) => `<section class="kutu">
@@ -165,7 +201,7 @@ ${form({ islem: "reddet", kadi: u.kadi }, "Reddet", "kucuk tehlike", `${u.kadi} 
 
   const ozet = `<div class="ozet">
 <a href="#kisiler" onclick="filtre(document.querySelector('[data-f=aktif]'))"><b>${say.aktif}</b><span>Aktif</span></a>
-<a href="#bekleyenler"><b>${bekleyen.length}</b><span>Onay bekleyen</span></a>
+<a href="#bekleyenler"><b>${bekleyen.length + odemeler.length}</b><span>Onay / ödeme bekleyen</span></a>
 <a href="#kisiler" onclick="filtre(document.querySelector('[data-f=yaklasan]'))"><b>${say.yaklasan}</b><span>${YAKLASAN_GUN} gün içinde bitecek</span></a>
 <a href="#kisiler" onclick="filtre(document.querySelector('[data-f=bitti]'))"><b>${say.bitti}</b><span>Süresi dolan / durdurulan</span></a>
 </div>`;
@@ -178,6 +214,7 @@ ${yeniKutu}
 ${ozet}
 
 ${bekleyen.length ? `<div class="bolum-bas" id="bekleyenler"><h2>Onay bekleyenler<span class="sayi">${bekleyen.length}</span></h2></div>${bekleyenHtml}` : '<span id="bekleyenler"></span>'}
+${odemeler.length ? `<div class="bolum-bas"><h2>Ödeme bildirimleri<span class="sayi">${odemeler.length}</span></h2></div>${odemeHtml}` : ""}
 ${sifirlama.length ? `<div class="bolum-bas"><h2>Şifre sıfırlama istekleri<span class="sayi">${sifirlama.length}</span></h2></div>${sifirlamaHtml}` : ""}
 
 <div class="bolum-bas" id="kisiler"><h2>Kişiler<span class="sayi">${liste.length}</span></h2></div>
@@ -203,7 +240,7 @@ ${liste.map(kart).join("\n") || '<div class="kutu bos">Henüz kimse yok.</div>'}
 <p>Hesap açmadan doğrudan EPG adresi verir. Kişi panel kullanamaz, token'ını kendisi yenileyemez.</p>
 <form method="post" class="ekle-satir"><input type="hidden" name="islem" value="ekle">
 <input name="ad" placeholder="Ad (ör. Kardeşim)" required maxlength="60" aria-label="Ad">
-<select name="sure" aria-label="Süre"><option value="6">6 ay</option><option value="12">1 yıl</option></select>
+<select name="sure" aria-label="Süre"><option value="3">3 ay</option><option value="6" selected>6 ay</option><option value="12">1 yıl</option></select>
 <button class="dugme">Ekle</button></form>
 </section>
 <section class="kutu">

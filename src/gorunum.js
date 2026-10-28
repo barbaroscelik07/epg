@@ -119,6 +119,17 @@ main.icerik{max-width:640px;margin:0 auto;padding:24px 20px 40px;display:flex;fl
 .ekle-satir select{height:52px;padding:0 12px;border:1px solid var(--girdi);border-radius:14px;background:var(--kart);color:var(--yazi);font:inherit;font-size:15px}
 .ekle-satir .dugme{width:auto;padding:0 20px;height:52px}
 @media (max-width:480px){.ekle-satir{grid-template-columns:minmax(0,1fr) auto}.ekle-satir input{grid-column:1 / -1}}
+.plan-liste{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.plan{position:relative}
+.plan input{position:absolute;opacity:0;width:1px;height:1px}
+.plan span{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 6px;border:1px solid var(--girdi);border-radius:14px;background:var(--kart);cursor:pointer;text-align:center}
+.plan b{font-size:18px;font-weight:800}.plan small{font-size:13px;color:var(--soluk)}
+.plan input:checked+span{border:2px solid var(--vurgu);padding:11px 5px;background:var(--vurgu-acik)}
+.plan input:focus-visible+span{outline:2px solid var(--vurgu);outline-offset:2px}
+.bilgi-satir{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:var(--zemin);border:1px solid var(--cizgi)}
+.bilgi-satir div{flex:1;min-width:0}.bilgi-satir small{display:block;font-size:12px;color:var(--soluk)}
+.bilgi-satir b{display:block;font-size:14px;word-break:break-all}
+.bilgi-satir .kucuk{height:36px;padding:0 10px}
 .sifre-goster{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:22px;font-weight:500;letter-spacing:.08em}
 .bos{padding:24px;text-align:center;color:var(--soluk);font-size:14px}
 details.daha summary{list-style:none;cursor:pointer}details.daha summary::-webkit-details-marker{display:none}

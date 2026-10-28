@@ -115,6 +115,8 @@ jobs:
           YONETIM_SIFRESI: ${{ secrets.YONETIM_SIFRESI }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BANKA_ALICI: ${{ secrets.BANKA_ALICI }}
+          BANKA_IBAN: ${{ secrets.BANKA_IBAN }}
         run: |
           mkdir -p public/logo
           cp logos/*.png public/logo/ 2>/dev/null || true
@@ -124,7 +126,7 @@ jobs:
             [ "$deneme" = 3 ] && exit 1
             echo "Yayin basarisiz ($deneme. deneme), 60 sn sonra tekrar"; sleep 60
           done
-          for ad in YONETIM_SIFRESI TELEGRAM_TOKEN TELEGRAM_CHAT_ID; do
+          for ad in YONETIM_SIFRESI TELEGRAM_TOKEN TELEGRAM_CHAT_ID BANKA_ALICI BANKA_IBAN; do
             deger=$(printenv "$ad" || true)
             if [ -n "$deger" ]; then
               printf '%s' "$deger" | npx --yes wrangler@4 secret put "$ad"

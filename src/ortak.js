@@ -91,8 +91,22 @@ export async function uyeAl(env, kadi) {
 }
 
 export async function uyeKaydet(env, u) {
-  const { kadi, durum, kayit, kod, sifirlama } = u; // listede gerekenler (şifre özeti metadata'ya konmaz)
-  await env.EPG.put(UYE + u.kadi, JSON.stringify(u), { metadata: { kadi, durum, kayit, kod: kod || null, sifirlama: sifirlama || null } });
+  const { kadi, durum, kayit, kod, sifirlama, odeme } = u; // listede gerekenler (şifre özeti metadata'ya konmaz)
+  await env.EPG.put(UYE + u.kadi, JSON.stringify(u), {
+    metadata: { kadi, durum, kayit, kod: kod || null, sifirlama: sifirlama || null, odeme: odeme || null },
+  });
+}
+
+// Letgo ürün tutarına göre hediye EPG süresi
+export const PLANLAR = [{ tutar: 150, ay: 3 }, { tutar: 200, ay: 6 }, { tutar: 250, ay: 12 }];
+export function sureYaz(ay) {
+  return ay === 12 ? "1 yıl" : `${ay} ay`;
+}
+export function aySec(deger) {
+  return { 3: 3, 6: 6, 12: 12 }[String(deger)] || 6;
+}
+export function odemeAciklamasi(kadi) {
+  return `Letgo ödemesi: ${kadi}`;
 }
 
 export async function listele(env, onek) {
