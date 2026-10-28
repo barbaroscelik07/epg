@@ -68,10 +68,16 @@ jobs:
           print('tvplus:', len(tv), 'diger:', len(diger))
           EOF
 
-      - name: EPG verisini topla - tvplus (tek tek, aralikli)
-        working-directory: epg-tool
+      - name: EPG verisini topla - tvplus (kendi okuyucu; olmazsa iptv-org araci)
         run: |
-          mkdir -p ../guides
+          mkdir -p guides
+          if python3 tvplus_oku.py; then
+            echo "::notice::tvplus kendi okuyucuyla alindi"
+            exit 0
+          fi
+          echo "::warning::tvplus kendi okuyucuyla alinamadi, iptv-org aracina donuluyor"
+          rm -f guides/tvplus.com.tr.xml
+          cd epg-tool
           npm run grab --- \
             --channels=../tvplus-channels.xml \
             --output="../guides/{site}.xml" \

@@ -82,8 +82,8 @@ for x in sira:
 if onceki:
     veri['onceki'] = onceki
 
-# Açıklaması olmayan programlara, aynı kanalda aynı programın başka kaynaktaki açıklamasını ekle
-# (başlangıç en fazla 5 dk farklı ve program adı aynı/biri diğerini içeriyorsa)
+# Açıklaması olmayan ya da kısa olan programlara, aynı kanalda aynı programın başka kaynaktaki
+# daha uzun açıklamasını koy (başlangıç en fazla 5 dk farklı ve program adı aynı/biri diğerini içeriyorsa)
 def _ad(t):
     return re.sub(r'[^a-z0-9]', '', (t or '').lower().translate(str.maketrans('ıİçğöşüâî', 'iicgosuai')))
 
@@ -93,11 +93,9 @@ def _zaman(s):
     except (TypeError, ValueError):
         return None
 
-aciklama_eklenen = 0
+UZUNLUK_FARKI = 20   # mevcut açıklamadan en az bu kadar karakter uzunsa değiştir
+aciklama_eklenen = aciklama_uzatilan = 0
 for x, s in secim.items():
-    eksik = [p for p in veri[s]['programs'][x] if not (p.findtext('desc') or '').strip()]
-    if not eksik:
-        continue
     havuz = collections.defaultdict(list)   # dakika -> [(ad, açıklama)] — diğer kaynaklardan
     for diger in veri:
         if diger == s:
@@ -109,19 +107,28 @@ for x, s in secim.items():
                 havuz[int(bas.timestamp()) // 60].append((_ad(p.findtext('title')), ac))
     if not havuz:
         continue
-    for p in eksik:
+    for p in veri[s]['programs'][x]:
         bas, ad_ = _zaman(p.get('start')), _ad(p.findtext('title'))
         if not bas or not ad_:
             continue
         dk = int(bas.timestamp()) // 60
-        adaylar_ = [a for d in range(dk - 5, dk + 6) for a in havuz.get(d, [])]
-        for had, ac in adaylar_:
-            if had and (had == ad_ or had in ad_ or ad_ in had):
-                el = ET.Element('desc', {'lang': 'tr'}); el.text = ac
+        uygun = [ac for d in range(dk - 5, dk + 6) for had, ac in havuz.get(d, [])
+                 if had and (had == ad_ or had in ad_ or ad_ in had)]
+        if not uygun:
+            continue
+        en_uzun = max(uygun, key=len)
+        mevcut = p.find('desc')
+        simdiki = (mevcut.text or '').strip() if mevcut is not None else ''
+        if not simdiki:
+            if mevcut is None:
+                mevcut = ET.Element('desc', {'lang': 'tr'})
                 baslik = p.find('title')
-                p.insert(list(p).index(baslik) + 1 if baslik is not None else 0, el)
-                aciklama_eklenen += 1
-                break
+                p.insert(list(p).index(baslik) + 1 if baslik is not None else 0, mevcut)
+            mevcut.text = en_uzun
+            aciklama_eklenen += 1
+        elif len(en_uzun) >= len(simdiki) + UZUNLUK_FARKI:
+            mevcut.text = en_uzun
+            aciklama_uzatilan += 1
 
 cikti = ET.Element('tv', {'generator-info-name': 'epgdeposu'})
 for x in sira:
@@ -174,6 +181,7 @@ rapor = [
     f'- Verisi gelen kanal: {len(secim)} / {len(sira)}',
     f'- Onceki EPG: {onceki_durum}',
     f'- Baska kaynaktan eklenen aciklama: {aciklama_eklenen}',
+    f'- Daha uzun aciklamayla degistirilen: {aciklama_uzatilan}',
     '',
     '### Kaynak durumu',
 ]
