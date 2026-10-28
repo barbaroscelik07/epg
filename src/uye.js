@@ -301,8 +301,11 @@ ${satir("Açıklama (aynen yaz)", odemeAciklamasi(u.kadi))}
 <button class="dugme">Ödemeyi yaptım</button>
 </form>`;
     }
-    const baslik = u.durum === "bekliyor" ? "Ödeme" : "Süre uzat";
-    bolumler = bolumler.replace("<!--odeme-->", `<section class="kutu">${kutuBas(IKON.kopya, "--vurgu-acik", "--vurgu-yazi", baslik)}${icerik}</section>`);
+    // Onaylı üyede kapalı gelir, "Süre uzat" düğmesine basınca açılır (bildirim yapılmışsa durumu açık görünür)
+    const kart = u.durum === "bekliyor" || u.odeme
+      ? `<section class="kutu">${kutuBas(IKON.kopya, "--vurgu-acik", "--vurgu-yazi", u.durum === "bekliyor" ? "Ödeme" : "Süre uzat")}${icerik}</section>`
+      : `<details class="kutu acilir"><summary class="dugme ikincil">${IKON.saat}Süre uzat</summary>${icerik}</details>`;
+    bolumler = bolumler.replace("<!--odeme-->", kart);
   }
 
   // Destek (Telegram botu)
