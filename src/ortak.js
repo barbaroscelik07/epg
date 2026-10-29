@@ -38,9 +38,32 @@ export function kalanGun(bitis) {
   return Math.round((Date.parse(bitis) - Date.parse(bugun())) / 86400000);
 }
 
-export function durum(k) {
+// ucretsiz: ücretsiz dönem anahtarı açık mı (yalnızca k.ucretsiz olan kayıtlar için önemli)
+export function durum(k, ucretsiz = false) {
   if (!k.aktif) return "durduruldu";
+  if (k.ucretsiz) return ucretsiz ? "aktif" : "doldu";
   return k.bitis >= bugun() ? "aktif" : "doldu";
+}
+
+// ---------- Ücretsiz dönem (yönetim sayfasındaki anahtar) ----------
+// Açıkken kayıt olanlar onaysız açılır, bitiş tarihi olmaz; anahtar kapanınca hepsinin erişimi durur.
+const UCRETSIZ_ANAHTAR = "ucretsiz-donem";
+export const SURESIZ = "9999-12-31";   // ücretsiz üyelerin bitiş yeri (sıralama için)
+let ucretsizOnbellek = { deger: false, zaman: 0 };
+export async function ucretsizAcik(env) {
+  if (Date.now() - ucretsizOnbellek.zaman < 30000) return ucretsizOnbellek.deger;
+  const deger = (await env.EPG.get(UCRETSIZ_ANAHTAR)) === "acik";
+  ucretsizOnbellek = { deger, zaman: Date.now() };
+  return deger;
+}
+export async function ucretsizAyarla(env, acik) {
+  await env.EPG.put(UCRETSIZ_ANAHTAR, acik ? "acik" : "kapali");
+  ucretsizOnbellek = { deger: acik, zaman: Date.now() };
+}
+// Süre eklenirken başlangıç: ücretsiz üye normal üyeye döner ve süresi bugünden başlar
+export function uzatmaBaslangici(k) {
+  if (k.ucretsiz) { delete k.ucretsiz; return bugun(); }
+  return k.bitis > bugun() ? k.bitis : bugun();
 }
 export const DURUM_YAZI = { aktif: "Aktif", durduruldu: "Durduruldu", doldu: "Süresi doldu" };
 

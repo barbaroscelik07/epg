@@ -142,7 +142,8 @@ const POPULER = [
 const KANALLAR = `<div class="vitrin" role="img" aria-label="Popüler kanallar: ${POPULER.map(([k]) => k).join(", ")}">
 <div class="vitrin-ic">${POPULER.map(([k, l]) => `<img src="/logo/${l}" alt="" title="${k}" loading="lazy">`).join("")}</div></div>`;
 
-export function anaSayfa() {
+// acikKayit: ücretsiz dönem açık (kayıt onaysız açılır; ödeme ve onay adımları gösterilmez)
+export function anaSayfa(acikKayit = false) {
   return html(uyeSablon("Türk kanalları için yayın akışı", `${STIL}${UST("ana")}
 <main class="tn">
 <section class="kahraman">
@@ -181,8 +182,8 @@ ${KANALLAR}
 <h2>Nasıl çalışır?</h2>
 <div class="adimlar">
 <div><h3>Üye ol</h3><p>Kullanıcı adı ve şifreyle hesabını aç.</p></div>
-<div><h3>Paketini seç</h3><p>Panelinden paketini seç ve ödeme bilgilerini gör.</p></div>
-<div><h3>Onay</h3><p>Ödeme kontrol edilince üyeliğin açılır.</p></div>
+${acikKayit ? `<div><h3>Adresini kopyala</h3><p>EPG adresin kayıttan hemen sonra panelinde.</p></div>` : `<div><h3>Paketini seç</h3><p>Panelinden paketini seç ve ödeme bilgilerini gör.</p></div>
+<div><h3>Onay</h3><p>Ödeme kontrol edilince üyeliğin açılır.</p></div>`}
 <div><h3>Adresi ekle</h3><p>Panelindeki EPG adresini IPTV uygulamana gir.</p></div>
 </div>
 </section>
@@ -193,7 +194,7 @@ ${KANALLAR}
 <div class="etiketler"><span>TiviMate</span><span>OTT Navigator</span><span>IPTV Smarters Pro</span><span>Televizo</span><span>Smart IPTV</span></div>
 </section>
 
-<section class="cagri"><h2>Hazır mısın?</h2><p>Üye ol, onaydan sonra EPG adresin panelinde seni bekliyor olacak.</p><a href="/kayit">Üye ol</a></section>
+<section class="cagri"><h2>Hazır mısın?</h2><p>${acikKayit ? "Üye ol, EPG adresin hemen panelinde." : "Üye ol, onaydan sonra EPG adresin panelinde seni bekliyor olacak."}</p><a href="/kayit">Üye ol</a></section>
 </main>
 ${ALT}`));
 }

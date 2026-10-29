@@ -1,5 +1,5 @@
 // EPG sunucusu: kişiye özel süreli adresler, üyelik sitesi, yönetim sayfası, box yükleme
-import { KUL, metin, git, durum, kimAnahtari } from "./ortak.js";
+import { KUL, metin, git, durum, kimAnahtari, ucretsizAcik } from "./ortak.js";
 import { yonetim } from "./yonetim.js";
 import { uyeYolu } from "./uye.js";
 import { telegram } from "./telegram.js";
@@ -23,7 +23,7 @@ export default {
     if (m) {
       const k = await env.EPG.get(KUL + m[1], { type: "json" });
       if (!k || (u && k.uye !== u[1])) return metin("Gecersiz adres", 404);  // ad ile kod eşleşmeli
-      const d = durum(k);
+      const d = durum(k, k.ucretsiz ? await ucretsizAcik(env) : false);
       if (d !== "aktif") return metin(d === "durduruldu" ? "Erisim durduruldu" : "Erisim suresi doldu", 403);
       if (env.OLAY) {   // indirme kaydı (beklemeden yazılır, isteği yavaşlatmaz)
         try {
@@ -34,7 +34,7 @@ export default {
       return epg(env, (m[2] || "").endsWith(".xml") ? "xml" : "gz");
     }
 
-    if (yol === "/" && request.method === "GET") return anaSayfa();
+    if (yol === "/" && request.method === "GET") return anaSayfa(await ucretsizAcik(env));
     if ((yol === "/kurulum" || yol === "/kurulum/") && request.method === "GET") return kurulumSayfasi();
 
     // Eski herkese açık adres (yönetim sayfasından kapatılabilir)

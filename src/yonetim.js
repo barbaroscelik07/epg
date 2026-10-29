@@ -2,6 +2,7 @@
 import {
   KUL, UYE, metin, html, git, bugun, simdi, ayEkle, kalanGun, durum, DURUM_YAZI, rastgele, bosKodBul,
   kac, esit, adresi, kaydet, uyeAl, uyeKaydet, listele, sifreOzetle, ayniSite, sureYaz, aySec, kimAnahtari,
+  ucretsizAcik, ucretsizAyarla, uzatmaBaslangici,
 } from "./ortak.js";
 import { uyeSablon, marka, uyari, tarihYaz, IKON } from "./gorunum.js";
 
@@ -32,6 +33,11 @@ export async function yonetim(request, env, url) {
       await kaydet(env, yeni, { ad, bitis: ayEkle(bugun(), ay), aktif: true, olusturma: bugun() });
       return yonlendir(`${ad} eklendi`, yeni);
     }
+    if (islem === "ucretsiz") {
+      const ac = f.get("durum") === "ac";
+      await ucretsizAyarla(env, ac);
+      return yonlendir(ac ? "Ücretsiz dönem açıldı: yeni kayıtlar onaysız açılıyor" : "Ücretsiz dönem kapatıldı: ücretsiz üyelerin erişimi durdu");
+    }
     if (islem === "acik") {
       await env.EPG.put("acik-erisim", f.get("durum") === "kapat" ? "kapali" : "acik");
       return yonlendir("Herkese açık adres ayarı kaydedildi");
@@ -53,7 +59,7 @@ export async function yonetim(request, env, url) {
       if (islem === "odeme-uzat") {   // aktif üyenin ödeme bildirimini onayla: süresini uzat
         const k = u.kod ? await env.EPG.get(KUL + u.kod, { type: "json" }) : null;
         if (!k) return yonlendir(`${kadi} için EPG kaydı bulunamadı`);
-        k.bitis = ayEkle(k.bitis > bugun() ? k.bitis : bugun(), ay);
+        k.bitis = ayEkle(uzatmaBaslangici(k), ay);
         k.aktif = true;
         await kaydet(env, u.kod, k);
         u.odeme = null;
@@ -83,7 +89,7 @@ export async function yonetim(request, env, url) {
     if (!k) return yonlendir("Kişi bulunamadı");
     let mesaj = "";
     if (islem === "uzat") {
-      k.bitis = ayEkle(k.bitis > bugun() ? k.bitis : bugun(), ay);
+      k.bitis = ayEkle(uzatmaBaslangici(k), ay);
       k.aktif = true;
       await kaydet(env, kod, k);
       if (k.uye) {   // bekleyen ödeme bildirimi varsa kapat
@@ -134,18 +140,18 @@ GROUP BY blob1 LIMIT 10000`,
 }
 
 async function sayfaGoster(env, url, mesaj, yeniKod = "", gecici = null) {
-  const [kisiler, uyeler, acikDeger, ist] = await Promise.all([listele(env, KUL), listele(env, UYE), env.EPG.get("acik-erisim"), istatistik(env)]);
+  const [kisiler, uyeler, acikDeger, ist, ucretsiz] = await Promise.all([listele(env, KUL), listele(env, UYE), env.EPG.get("acik-erisim"), istatistik(env), ucretsizAcik(env)]);
   const bekleyen = uyeler.filter((u) => u.durum === "bekliyor");
   const sifirlama = uyeler.filter((u) => u.sifirlama);
   const odemeler = uyeler.filter((u) => u.durum === "onayli" && u.odeme);
-  return html(sayfa(url.origin, kisiler, bekleyen, sifirlama, odemeler, acikDeger !== "kapali", mesaj, yeniKod, gecici, ist));
+  return html(sayfa(url.origin, kisiler, bekleyen, sifirlama, odemeler, acikDeger !== "kapali", mesaj, yeniKod, gecici, ist, ucretsiz));
 }
 
 const YAKLASAN_GUN = 14;
 
 const SUPHE_IP = 8;   // 7 günde bu kadar ya da daha fazla farklı bağlantı: adres paylaşılıyor olabilir
 
-function sayfa(origin, kisiler, bekleyen, sifirlama, odemeler, acik, mesaj, yeniKod, gecici, ist) {
+function sayfa(origin, kisiler, bekleyen, sifirlama, odemeler, acik, mesaj, yeniKod, gecici, ist, ucretsiz) {
   const form = (alanlar, yazi, sinif = "kucuk", onay = "") =>
     `<form method="post"${onay ? ` onsubmit="return confirm('${kac(onay)}')"` : ""}>${Object.entries(alanlar)
       .map(([a, v]) => `<input type="hidden" name="${a}" value="${kac(v)}">`).join("")}<button class="${sinif}">${yazi}</button></form>`;
@@ -154,9 +160,9 @@ function sayfa(origin, kisiler, bekleyen, sifirlama, odemeler, acik, mesaj, yeni
 
   // Kişileri hazırla: durum, kalan gün, yaklaşan
   const liste = kisiler.map((k) => {
-    const d = durum(k);
+    const d = durum(k, ucretsiz);
     const kalan = kalanGun(k.bitis);
-    const yaklasan = d === "aktif" && kalan <= YAKLASAN_GUN;
+    const yaklasan = d === "aktif" && !k.ucretsiz && kalan <= YAKLASAN_GUN;
     const kullanim = ist ? ist[kimAnahtari(k.anahtar, k)] || { adet: 0, ip: 0 } : null;
     return { ...k, d, kalan, yaklasan, kullanim, suphe: !!kullanim && kullanim.ip >= SUPHE_IP };
   }).sort((a, b) => (a.d === "aktif" ? 0 : 1) - (b.d === "aktif" ? 0 : 1) || a.bitis.localeCompare(b.bitis));
@@ -164,13 +170,17 @@ function sayfa(origin, kisiler, bekleyen, sifirlama, odemeler, acik, mesaj, yeni
     aktif: liste.filter((k) => k.d === "aktif").length,
     yaklasan: liste.filter((k) => k.yaklasan).length,
     bitti: liste.filter((k) => k.d !== "aktif").length,
+    ucretsiz: liste.filter((k) => k.ucretsiz).length,
   };
 
   const kart = (k) => {
-    const rozet = k.yaklasan ? `<span class="rozet bekliyor">${k.kalan} gün kaldı</span>` : `<span class="rozet ${k.d}">${DURUM_YAZI[k.d]}</span>`;
-    const alt = [k.uye ? `Üye: ${kac(k.uye)}` : "Üyeliksiz", `Bitiş: ${tarihYaz(k.bitis)}${k.d === "aktif" && !k.yaklasan ? ` · ${k.kalan} gün` : ""}`]
+    const rozet = k.yaklasan ? `<span class="rozet bekliyor">${k.kalan} gün kaldı</span>`
+      : k.ucretsiz && k.d === "aktif" ? `<span class="rozet aktif">Ücretsiz</span>` : `<span class="rozet ${k.d}">${DURUM_YAZI[k.d]}</span>`;
+    const bitisYazi = k.ucretsiz ? `Ücretsiz üye${k.d === "doldu" ? " · ücretsiz dönem kapalı" : ""}`
+      : `Bitiş: ${tarihYaz(k.bitis)}${k.d === "aktif" && !k.yaklasan ? ` · ${k.kalan} gün` : ""}`;
+    const alt = [k.uye ? `Üye: ${kac(k.uye)}` : "Üyeliksiz", bitisYazi]
       .concat(k.sonYenileme ? [`Son token yenileme: ${tarihYaz(k.sonYenileme)}`] : []).join(" · ");
-    const durumlar = [k.d, k.yaklasan ? "yaklasan" : "", k.d !== "aktif" ? "bitti" : "", k.suphe ? "suphe" : ""].join(" ").trim();
+    const durumlar = [k.d, k.yaklasan ? "yaklasan" : "", k.d !== "aktif" ? "bitti" : "", k.suphe ? "suphe" : "", k.ucretsiz ? "ucretsiz" : ""].join(" ").trim();
     const kullanimSatiri = k.kullanim
       ? `<div class="${k.suphe ? "uyari hata" : "ipucu"}" style="margin-top:0">Son 7 gün: ${k.kullanim.adet} indirme · ${k.kullanim.ip} farklı bağlantı${k.suphe ? " — adres paylaşılıyor olabilir" : ""}</div>`
       : "";
@@ -240,6 +250,12 @@ ${uyari(mesaj, "iyi")}
 ${geciciKutu}
 ${yeniKutu}
 ${ozet}
+<section class="kutu"${ucretsiz ? ' style="border-color:var(--iyi-y)"' : ""}>
+<div class="kisi-ust"><div><div class="kisi-ad">Ücretsiz dönem</div><div class="kisi-alt">${say.ucretsiz} ücretsiz üye</div></div><span class="rozet ${ucretsiz ? "aktif" : "durduruldu"}">${ucretsiz ? "Açık" : "Kapalı"}</span></div>
+<p>${ucretsiz ? "Kayıt olanlar onaysız ve süresiz açılıyor (aynı bağlantıdan günde 3, toplam günde 100 kayıt). Kapatınca ücretsiz üyelerin erişimi hemen durur, panellerinde ödeme kartı çıkar." : "Açınca yeni kayıtlar onaysız ve süresiz açılır; ödeme bölümleri gizlenir. Süreli üyeler etkilenmez."}</p>
+<div class="satir">${form({ islem: "ucretsiz", durum: ucretsiz ? "kapat" : "ac" }, ucretsiz ? "Kapat" : "Aç", ucretsiz ? "kucuk tehlike" : "kucuk ana",
+  ucretsiz ? `Ücretsiz dönem kapatılsın mı? ${say.ucretsiz} ücretsiz üyenin EPG'si hemen durur.` : "Ücretsiz dönem açılsın mı? Yeni kayıtlar onaysız açılacak.")}</div>
+</section>
 
 ${bekleyen.length ? `<div class="bolum-bas" id="bekleyenler"><h2>Onay bekleyenler<span class="sayi">${bekleyen.length}</span></h2></div>${bekleyenHtml}` : '<span id="bekleyenler"></span>'}
 ${odemeler.length ? `<div class="bolum-bas"><h2>Ödeme bildirimleri<span class="sayi">${odemeler.length}</span></h2></div>${odemeHtml}` : ""}
@@ -252,6 +268,7 @@ ${sifirlama.length ? `<div class="bolum-bas"><h2>Şifre sıfırlama istekleri<sp
 <button type="button" data-f="aktif" aria-pressed="false" onclick="filtre(this)">Aktif</button>
 <button type="button" data-f="yaklasan" aria-pressed="false" onclick="filtre(this)">Yakında bitecek</button>
 <button type="button" data-f="bitti" aria-pressed="false" onclick="filtre(this)">Dolan / durdurulan</button>
+${say.ucretsiz ? `<button type="button" data-f="ucretsiz" aria-pressed="false" onclick="filtre(this)">Ücretsiz (${say.ucretsiz})</button>` : ""}
 ${ist ? `<button type="button" data-f="suphe" aria-pressed="false" onclick="filtre(this)">Çok bağlantı (${liste.filter((k) => k.suphe).length})</button>` : ""}
 </div>
 ${liste.map(kart).join("\n") || '<div class="kutu bos">Henüz kimse yok.</div>'}
@@ -262,7 +279,7 @@ ${ist ? `İndirme sayıları birkaç dakika gecikmeli gelir. 7 günde ${SUPHE_IP
 <div class="bolum-bas"><h2>Ekle ve paylaş</h2></div>
 <section class="kutu">
 <div class="kutu-bas"><span class="kutu-ikon" style="background:var(--vurgu-acik);color:var(--vurgu-yazi)">${IKON.link}</span><h2>Üye kayıt adresi</h2></div>
-<p>Üye olmak isteyenlere bu adresi gönder. Kayıt olanlar yukarıda onay bekler.</p>
+<p>Üye olmak isteyenlere bu adresi gönder. ${ucretsiz ? "Ücretsiz dönem açık: kayıt olanlar hemen açılır." : "Kayıt olanlar yukarıda onay bekler."}</p>
 <div class="adres-satir"><div class="adres">${kac(origin)}/kayit</div>${kopyaDugme(origin + "/kayit")}</div>
 </section>
 <section class="kutu">

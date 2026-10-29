@@ -2,7 +2,7 @@
 import {
   KUL, UYE, OTURUM, html, git, metin, bugun, simdi, kalanGun, durum, DURUM_YAZI, rastgele, bosKodBul,
   kac, adresi, kaydet, uyeAl, uyeKaydet, listele, sifreOzetle, sifreDogru, bildir, ayniSite,
-  PLANLAR, sureYaz, odemeAciklamasi,
+  PLANLAR, sureYaz, odemeAciklamasi, ucretsizAcik, SURESIZ,
 } from "./ortak.js";
 import { uyeSablon, marka, uyari, halka, tarihYaz, IKON } from "./gorunum.js";
 
@@ -10,6 +10,8 @@ const KADI = /^[a-z0-9_.]{3,20}$/;
 const OTURUM_GUN = 30;
 const BEKLEYEN_SINIR = 20;   // aynı anda en fazla bu kadar onay bekleyen kayıt
 const DENEME_SINIR = 5;      // 15 dakikada en fazla bu kadar hatalı giriş
+const KAYIT_IP_SINIR = 3;    // ücretsiz dönemde: aynı bağlantıdan günde en fazla bu kadar kayıt
+const KAYIT_GUN_SINIR = 100; // ücretsiz dönemde: toplam günlük kayıt sınırı (KV yazma sınırı için)
 
 export async function uyeYolu(request, env, url) {
   const yol = url.pathname.replace(/\/$/, "") || "/";
@@ -113,9 +115,10 @@ async function giris(request, env) {
 }
 
 // ---------- Kayıt ----------
-function kayitFormu(mesaj = "", hata = false, kadi = "") {
+function kayitFormu(mesaj = "", hata = false, kadi = "", acikKayit = false) {
   return girisIskelet("Üye ol", '<a href="/giris" style="font-size:14px">Giriş yap</a>', "Üye ol",
-    "Hesabın yönetici onayından sonra açılır. Onaylanınca yayın akışı adresin panelinde görünür.",
+    acikKayit ? "Kayıt olunca yayın akışı adresin hemen panelinde görünür."
+      : "Hesabın yönetici onayından sonra açılır. Onaylanınca yayın akışı adresin panelinde görünür.",
     mesaj, hata ? "hata" : "bilgi", `<form method="post" class="alanlar">
 <div class="alan"><label for="kadi">Kullanıcı adı</label>
 <input id="kadi" name="kadi" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" required maxlength="20" value="${kac(kadi)}">
@@ -130,16 +133,36 @@ function kayitFormu(mesaj = "", hata = false, kadi = "") {
 }
 
 async function kayit(request, env) {
-  if (request.method !== "POST") return kayitFormu();
+  const acikKayit = await ucretsizAcik(env);
+  if (request.method !== "POST") return kayitFormu("", false, "", acikKayit);
   const f = await request.formData();
   const kadi = String(f.get("kadi") || "").trim().toLowerCase();
   const sifre = String(f.get("sifre") || "");
-  if (!KADI.test(kadi)) return kayitFormu("Kullanıcı adı uygun değil.", true, kadi);
-  if (sifre.length < 8 || sifre.length > 100) return kayitFormu("Şifre en az 8 karakter olmalı.", true, kadi);
-  if (sifre !== String(f.get("sifre2") || "")) return kayitFormu("Şifreler aynı değil.", true, kadi);
-  if (await uyeAl(env, kadi)) return kayitFormu("Bu kullanıcı adı alınmış.", true, kadi);
+  const formHata = (m) => kayitFormu(m, true, kadi, acikKayit);
+  if (!KADI.test(kadi)) return formHata("Kullanıcı adı uygun değil.");
+  if (sifre.length < 8 || sifre.length > 100) return formHata("Şifre en az 8 karakter olmalı.");
+  if (sifre !== String(f.get("sifre2") || "")) return formHata("Şifreler aynı değil.");
+  if (await uyeAl(env, kadi)) return formHata("Bu kullanıcı adı alınmış.");
+
+  if (acikKayit) {   // ücretsiz dönem: onaysız, süresiz hesap
+    const gun = bugun();
+    const ipAnahtar = `kayit-ip:${gun}:${request.headers.get("cf-connecting-ip") || "?"}`, gunAnahtar = `kayit-gun:${gun}`;
+    const [ipSay, gunSay] = (await Promise.all([env.EPG.get(ipAnahtar), env.EPG.get(gunAnahtar)])).map((v) => Number(v) || 0);
+    if (gunSay >= KAYIT_GUN_SINIR) return formHata("Bugünlük kayıt sınırı doldu, yarın tekrar deneyin.");
+    if (ipSay >= KAYIT_IP_SINIR) return formHata("Bu bağlantıdan bugün çok fazla kayıt yapıldı, yarın tekrar deneyin.");
+    const kod = await bosKodBul(env);
+    await kaydet(env, kod, { ad: kadi, bitis: SURESIZ, ucretsiz: true, aktif: true, olusturma: gun, uye: kadi });
+    await uyeKaydet(env, { kadi, ...(await sifreOzetle(sifre)), durum: "onayli", kayit: simdi(), kod });
+    await Promise.all([
+      env.EPG.put(ipAnahtar, String(ipSay + 1), { expirationTtl: 2 * 86400 }),
+      env.EPG.put(gunAnahtar, String(gunSay + 1), { expirationTtl: 2 * 86400 }),
+    ]);
+    await bildir(env, `Yeni ücretsiz üye: ${kadi}`);
+    return git("/panel", { "set-cookie": await oturumAc(env, kadi) });
+  }
+
   const bekleyen = (await listele(env, UYE)).filter((u) => u.durum === "bekliyor").length;
-  if (bekleyen >= BEKLEYEN_SINIR) return kayitFormu("Şu an yeni kayıt alınamıyor, daha sonra tekrar deneyin.", true, kadi);
+  if (bekleyen >= BEKLEYEN_SINIR) return formHata("Şu an yeni kayıt alınamıyor, daha sonra tekrar deneyin.");
   await uyeKaydet(env, { kadi, ...(await sifreOzetle(sifre)), durum: "bekliyor", kayit: simdi(), kod: null });
   await bildir(env, `Yeni üye kaydı: ${kadi}\nOnaylamak için yönetim sayfasını açın.`);
   return git("/panel", { "set-cookie": await oturumAc(env, kadi) });
@@ -233,6 +256,19 @@ async function panel(request, env, url) {
 </div></div></header>`;
   const kutuBas = (ikon, zemin, renk, baslik) =>
     `<div class="kutu-bas"><span class="kutu-ikon" style="background:var(${zemin});color:var(${renk})">${ikon}</span><h2>${baslik}</h2></div>`;
+  const epgKutusu = (adres) => `<section class="kutu">
+${kutuBas(IKON.link, "--vurgu-acik", "--vurgu-yazi", "EPG adresin")}
+<p>IPTV uygulamana EPG kaynağı olarak bu adresi gir. <a href="/kurulum">Nasıl kurulur?</a></p>
+<div class="adres">${kac(adres)}</div>
+<button type="button" class="dugme" data-adres="${kac(adres)}" onclick="kopyala(this)">${IKON.kopya}<span>Adresi kopyala</span></button>
+</section>`;
+  const tokenKutusu = (k) => `<section class="kutu">
+${kutuBas(IKON.yenile, "--turuncu-acik", "--turuncu", "Token yenile")}
+<p>Adresin başkasının eline geçtiyse yenile. Eski adres hemen kapanır; uygulamandaki EPG adresini yenisiyle değiştirmen gerekir.</p>
+${k.sonYenileme ? `<span class="ipucu">Son yenileme: ${tarihYaz(k.sonYenileme)}</span>` : ""}
+<form method="post" onsubmit="return confirm('Yeni adres oluşturulacak ve eski adres hemen kapanacak. IPTV uygulamandaki EPG adresini yenisiyle değiştirmen gerekecek. Devam edilsin mi?')">
+<input type="hidden" name="islem" value="yenile"><button class="dugme ikincil">Yeni token oluştur</button></form>
+</section>`;
 
   let bolumler = "";
   if (u.durum === "bekliyor") {
@@ -252,6 +288,18 @@ async function panel(request, env, url) {
 </section>`;
   } else if (!k) {
     bolumler = `<section class="kutu"><span class="rozet kapali">Kapalı</span><h2 style="font-size:18px">EPG erişimin kapatılmış</h2><p>Bilgi için yöneticiyle görüş.</p></section>`;
+  } else if (k.ucretsiz) {
+    const acik = await ucretsizAcik(env);
+    const d = durum(k, acik);
+    if (d === "aktif") {
+      bolumler = `<section class="kutu"><span class="rozet aktif">● ${DURUM_YAZI.aktif}</span></section>`;
+    } else if (d === "doldu") {
+      bolumler = `<section class="kutu"><span class="rozet doldu">${DURUM_YAZI.doldu}</span>
+<h2 style="font-size:18px">Üyeliğin sona erdi</h2><p>Devam etmek için paketini seç.</p></section>`;
+    } else {
+      bolumler = `<section class="kutu"><span class="rozet durduruldu">${DURUM_YAZI.durduruldu}</span><p>Erişimin durduruldu. Yöneticiyle görüş.</p></section>`;
+    }
+    bolumler += epgKutusu(adresi(url.origin, u.kod, u.kadi)) + (d === "doldu" ? "<!--odeme-acik-->" : "") + tokenKutusu(k);
   } else {
     const d = durum(k);
     const kalan = Math.max(0, kalanGun(k.bitis));
@@ -264,20 +312,9 @@ ${halka(d === "aktif" ? kalan : 0, d === "aktif" ? kalan / toplam : 0)}
 <span class="etiket">Bitiş tarihi</span><span class="deger">${tarihYaz(k.bitis)}</span>
 <span class="etiket" style="margin-top:4px">${d === "aktif" ? "Süre uzatma için yöneticiyle görüş." : d === "doldu" ? "Süren doldu. Uzatmak için yöneticiyle görüş." : "Erişimin durduruldu. Yöneticiyle görüş."}</span>
 </div></section>
-<section class="kutu">
-${kutuBas(IKON.link, "--vurgu-acik", "--vurgu-yazi", "EPG adresin")}
-<p>IPTV uygulamana EPG kaynağı olarak bu adresi gir. <a href="/kurulum">Nasıl kurulur?</a></p>
-<div class="adres">${kac(adres)}</div>
-<button type="button" class="dugme" data-adres="${kac(adres)}" onclick="kopyala(this)">${IKON.kopya}<span>Adresi kopyala</span></button>
-</section>
+${epgKutusu(adres)}
 <!--odeme-->
-<section class="kutu">
-${kutuBas(IKON.yenile, "--turuncu-acik", "--turuncu", "Token yenile")}
-<p>Adresin başkasının eline geçtiyse yenile. Eski adres hemen kapanır; uygulamandaki EPG adresini yenisiyle değiştirmen gerekir.</p>
-${k.sonYenileme ? `<span class="ipucu">Son yenileme: ${tarihYaz(k.sonYenileme)}</span>` : ""}
-<form method="post" onsubmit="return confirm('Yeni adres oluşturulacak ve eski adres hemen kapanacak. IPTV uygulamandaki EPG adresini yenisiyle değiştirmen gerekecek. Devam edilsin mi?')">
-<input type="hidden" name="islem" value="yenile"><button class="dugme ikincil">Yeni token oluştur</button></form>
-</section>`;
+${tokenKutusu(k)}`;
   }
 
   // Ödeme ve hediye EPG kartı (onay bekleyen ve onaylı üyeler)
@@ -305,7 +342,8 @@ ${satir("Açıklama (aynen yaz)", odemeAciklamasi(u.kadi))}
     const kart = u.durum === "bekliyor" || u.odeme
       ? `<section class="kutu">${kutuBas(IKON.kopya, "--vurgu-acik", "--vurgu-yazi", u.durum === "bekliyor" ? "Ödeme" : "Süre uzat")}${icerik}</section>`
       : `<details class="kutu acilir"><summary class="dugme ikincil">${IKON.saat}Süre uzat</summary>${icerik}</details>`;
-    bolumler = bolumler.replace("<!--odeme-->", kart);
+    bolumler = bolumler.replace("<!--odeme-->", kart)   // ücretsiz üye: yalnızca dönem kapandıysa, açık kart olarak
+      .replace("<!--odeme-acik-->", `<section class="kutu">${kutuBas(IKON.kopya, "--vurgu-acik", "--vurgu-yazi", "Ödeme")}${icerik}</section>`);
   }
 
   // Destek (Telegram botu)
