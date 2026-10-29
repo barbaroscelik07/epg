@@ -74,5 +74,6 @@ ET.ElementTree(cikti).write('guides/yayinakisi.co.xml', encoding='utf-8', xml_de
 ozet = (f'yayinakisi yedek: {len(kok.findall("channel"))} kanal, {len(eslesme)} eslesti '
         f'({len(kanal_eklendi)} tanesinde program var), {len(eslesmeyen)} eslesmedi, {len(belirsiz)} belirsiz')
 print(ozet); print('::notice::' + ozet)
+print('::notice::yayinakisi eslesmeyen kanallar: ' + ', '.join(eslesmeyen))
 if belirsiz:
     print('::notice::yayinakisi belirsiz eslesme: ' + ', '.join(belirsiz[:60]))
