@@ -68,14 +68,20 @@ def onceki_veri():
 
 onceki = onceki_veri()
 
-secim, bos, korunan = {}, [], []
+TVPLUS, TVPLUS_ORAN = 'tvplus.com.tr', 0.6
+secim, bos, korunan, tvplus_tercih = {}, [], [], []
 for x in sira:
     # Türk kaynaklarından veri varsa her zaman onlar seçilir; ipko/tvprofil yalnızca başka kaynak yoksa
     adaylar = [(0 if s in YABANCI else 1 if s in YEDEK else 2, len(veri[s]['programs'].get(x, [])),
                 -ONCELIK.index(s) if s in ONCELIK else -99, s) for s in veri]
     adaylar = [a for a in adaylar if a[1] > 0]
     if adaylar:
-        secim[x] = max(adaylar)[3]
+        en_iyi = max(adaylar)
+        secim[x] = en_iyi[3]
+        # tvplus'ın açıklamaları/program adları daha ayrıntılı: en çok program verenin en az %60'ı kadarsa tvplus'ı seç
+        tv = [a for a in adaylar if a[3] == TVPLUS]
+        if en_iyi[0] == 2 and en_iyi[3] != TVPLUS and tv and tv[0][1] >= TVPLUS_ORAN * en_iyi[1]:
+            secim[x] = TVPLUS; tvplus_tercih.append(ad[x])
     elif onceki and onceki['programs'].get(x):
         secim[x] = 'onceki'; korunan.append(ad[x])
     else:
@@ -217,6 +223,7 @@ rapor += ['', f'### Yalnizca ad ve logoyla eklenen kanallar ({len(sadece_logo)})
 
 yedekten = [ad[x] for x, s in secim.items() if s in YEDEK]
 rapor += ['', f'### Yedek kaynaktan (yayinakisi) alinan kanallar ({len(yedekten)})'] + ([f'- {b}' for b in yedekten] or ['- Yok'])
+print('::notice::Daha cok programi olan kaynak yerine tvplus secilen kanallar (' + str(len(tvplus_tercih)) + '): ' + (', '.join(tvplus_tercih) or 'yok'))
 print('::notice::Verisi gelmeyen kanallar (' + str(len(bos)) + '): ' + (', '.join(bos) or 'yok'))
 print('::notice::Yedekten alinan kanallar (' + str(len(yedekten)) + '): ' + (', '.join(yedekten) or 'yok'))
 metin = '\n'.join(rapor) + '\n'
