@@ -108,6 +108,11 @@ jobs:
       - name: Tivibu verisini oku (Android box'tan)
         run: python3 tivibu.py || true
 
+      - name: Yedek kaynak (yayinakisi.co; yalnizca verisi olmayan kanallar icin)
+        env:
+          YAYINAKISI_URL: ${{ secrets.YAYINAKISI_URL }}
+        run: python3 yayinakisi.py || echo "::warning::yayinakisi yedek kaynak okunamadi"
+
       - name: Kaynaklari birlestir ve rapor yaz
         run: python3 birlestir.py
 
