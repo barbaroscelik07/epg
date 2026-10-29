@@ -130,18 +130,38 @@ for x, s in secim.items():
             mevcut.text = en_uzun
             aciklama_uzatilan += 1
 
+# IPTV listelerindeki farklı adlarla da eşleşsin diye ek adlar (ek_adlar.tsv: xmltv_id<TAB>ad)
+ek_adlar = collections.defaultdict(list)
+if os.path.exists('ek_adlar.tsv'):
+    for satir in open('ek_adlar.tsv', encoding='utf-8'):
+        if '\t' in satir:
+            x_, a_ = satir.rstrip('\n').split('\t', 1)
+            ek_adlar[x_].append(a_.strip())
+
 cikti = ET.Element('tv', {'generator-info-name': 'epgdeposu'})
+sadece_logo = []
 for x in sira:
-    if x not in secim: continue
-    c = veri[secim[x]]['channels'].get(x)
+    if x not in secim:
+        # Yayın akışı yok ama logosu varsa kanalı programsız ekle (uygulamada en azından ad ve logo görünür)
+        if not os.path.exists(f'logos/{x}.png'): continue
+        secim_yok = True; sadece_logo.append(ad[x])
+        c = None
+    else:
+        secim_yok = False
+        c = veri[secim[x]]['channels'].get(x)
     if c is None:
         c = ET.Element('channel', {'id': x})
         ET.SubElement(c, 'display-name', {'lang': 'tr'}).text = ad[x]
+    var_olan = {(d.text or '').strip().lower() for d in c.findall('display-name')}
+    for a_ in ek_adlar.get(x, []):
+        if a_.lower() not in var_olan:
+            yeni_ad = ET.Element('display-name', {'lang': 'tr'}); yeni_ad.text = a_
+            c.insert(len(c.findall('display-name')), yeni_ad); var_olan.add(a_.lower())
     if os.path.exists(f'logos/{x}.png'):   # depodaki logo varsa her zaman onu kullan
         for i in c.findall('icon'):
             c.remove(i)
         ET.SubElement(c, 'icon', {'src': f'https://epg.epgdeposu.workers.dev/logo/{x}.png'})
-    if c.find('icon') is None:   # logo başka kaynağın kaydında varsa onu kullan
+    if c.find('icon') is None and not secim_yok:   # logo başka kaynağın kaydında varsa onu kullan
         for s in veri:
             diger = veri[s]['channels'].get(x)
             if diger is not None and diger.find('icon') is not None:
@@ -192,6 +212,7 @@ for s in ONCELIK:
             rapor.append(f'  - Hata ({n}x): {msg}')
 rapor += ['', f'### Onceki veriden korunan kanallar ({len(korunan)})'] + ([f'- {k}' for k in korunan] or ['- Yok'])
 rapor += ['', '### Verisi gelmeyen kanallar'] + ([f'- {b}' for b in bos] or ['- Yok'])
+rapor += ['', f'### Yalnizca ad ve logoyla eklenen kanallar ({len(sadece_logo)})'] + ([f'- {b}' for b in sadece_logo] or ['- Yok'])
 
 metin = '\n'.join(rapor) + '\n'
 print(metin)

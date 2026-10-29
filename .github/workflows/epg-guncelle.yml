@@ -62,7 +62,7 @@ jobs:
               with open(ad, 'w', encoding='utf-8') as f:
                   f.write('<?xml version="1.0" encoding="UTF-8"?>\n<channels>\n' + '\n'.join(secim) + '\n</channels>\n')
           tv = [s for s in kanal if 'site="tvplus.com.tr"' in s]
-          ozel = ('site="tvplus.com.tr"', 'site="turksatkablo.com.tr"', 'site="digiturk.com.tr"', 'site="dsmart.com.tr"', 'site="tivibu.com.tr"')
+          ozel = ('site="tvplus.com.tr"', 'site="turksatkablo.com.tr"', 'site="digiturk.com.tr"', 'site="dsmart.com.tr"', 'site="tivibu.com.tr"', 'site="logo"')
           diger = [s for s in kanal if not any(o in s for o in ozel)]
           yaz('tvplus-channels.xml', tv); yaz('diger-channels.xml', diger)
           print('tvplus:', len(tv), 'diger:', len(diger))

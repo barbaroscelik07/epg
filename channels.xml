@@ -551,4 +551,14 @@
   <channel site="dsmart.com.tr" lang="tr" xmltv_id="RTInternational.ru" site_id="683d6eafcfef0b3744e79132">RT International</channel>
   <channel site="turksatkablo.com.tr" lang="tr" xmltv_id="AzTV.az" site_id="Az TV">Az TV</channel>
   <channel site="turksatkablo.com.tr" lang="tr" xmltv_id="KanalB.tr" site_id="Kanal B">Kanal B</channel>
+<!-- Eklenen kanallar (2026-10-29) -->
+  <channel site="tvplus.com.tr" lang="tr" xmltv_id="Azoomee.tr" site_id="4521">Azoomee</channel>
+  <channel site="tvplus.com.tr" lang="tr" xmltv_id="NR1Rap.tr" site_id="41">NR1 Rap</channel>
+  <channel site="dsmart.com.tr" lang="tr" xmltv_id="CocukSmart.tr" site_id="58d29bb0eefad3db9c6062b5">Çocuk Smart</channel>
+  <!-- Yayın akışı kaynağı bulunamadı: yalnızca ad ve logo (site="logo") -->
+  <channel site="logo" lang="tr" xmltv_id="beINMoviesAction.tr" site_id="-">beIN Movies Action</channel>
+  <channel site="logo" lang="tr" xmltv_id="beINMoviesAction2.tr" site_id="-">beIN Movies Action 2</channel>
+  <channel site="logo" lang="tr" xmltv_id="SToon.tr" site_id="-">S Toon</channel>
+  <channel site="logo" lang="tr" xmltv_id="KralPopTV.tr" site_id="-">Kral Pop TV</channel>
+  <channel site="logo" lang="tr" xmltv_id="NR1Dance.tr" site_id="-">NR1 Dance</channel>
 </channels>
