@@ -144,11 +144,11 @@ const KANALLAR = `<div class="vitrin" role="img" aria-label="Popüler kanallar: 
 
 // acikKayit: ücretsiz dönem açık (kayıt onaysız açılır; ödeme ve onay adımları gösterilmez)
 export function anaSayfa(acikKayit = false) {
-  return html(uyeSablon("Türk kanalları için yayın akışı", `${STIL}${UST("ana")}
+  return html(uyeSablon(acikKayit ? "Türk kanalları için ücretsiz yayın akışı" : "Türk kanalları için yayın akışı", `${STIL}${UST("ana")}
 <main class="tn">
 <section class="kahraman">
 <div>
-<h1>Türk kanalları için <span>yayın akışı</span>, tek adreste.</h1>
+<h1>Türk kanalları için <span>${acikKayit ? "ücretsiz " : ""}yayın akışı</span>, tek adreste.</h1>
 <p>IPTV uygulamana kişisel EPG adresini ekle; ulusal, haber, spor, belgesel, çocuk ve sinema kanallarının program akışı kanal logoları ve açıklamalarıyla gelsin.</p>
 <div class="dugmeler"><a class="dugme" href="/kayit">Hemen üye ol</a><a class="dugme ikincil" href="/kurulum">Nasıl kurulur?</a></div>
 </div>
