@@ -3,7 +3,7 @@
 # iptv-org aracından farkı: yönetmen, oyuncular, tür ve ülke bilgisini de alır;
 # açıklamanın başına "Tür / Yönetmen / Oyuncular / Yapım Yeri" satırlarını ekler.
 # Yeterli veri gelmezse 1 ile çıkar (iş akışı o zaman eski iptv-org yöntemine döner).
-import os, sys, json, time, http.cookiejar, urllib.request
+import os, re, sys, json, time, http.cookiejar, urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -94,45 +94,85 @@ def kanal_programlari(sid, bas, son):
              'endtime': son.strftime('%Y%m%d%H%M%S'), 'isFillProgram': 1, 'count': '1000', 'offset': '0'}
     return istek('PlayBillList', govde).get('playbilllist') or []
 
+def kanal_ogeleri(xid, sid, bugun, bitis):
+    # Servis tek cevapta aralığın bir kısmını verebilir: son programın bitişinden devam et
+    pl, bas = [], bugun
+    for _ in range(GUN + 2):
+        parca = kanal_programlari(sid, bas, bitis)
+        if not parca:
+            break
+        pl += parca
+        son_bitis = max((zaman(p.get('endtime', '')) or datetime.min) for p in parca) + timedelta(hours=3)  # yerel saat
+        if son_bitis <= bas or son_bitis >= bitis:
+            break
+        bas = son_bitis
+        time.sleep(BEKLE)
+    ogeler, anahtarlar = [], set()
+    for p in pl:
+        o = program_ogesi(xid, p)
+        if o and o[1].get('start') not in anahtarlar:
+            anahtarlar.add(o[1].get('start')); ogeler.append(o)
+    return ogeler
+
+def norm(ad):
+    ad = (ad or '').lower().replace('i̇', 'i').translate(str.maketrans('ıçğöşüâî', 'icgosuai'))
+    ad = re.sub(r'\b(hd|fhd|uhd|sd|4k|tv)\b', ' ', ad)
+    return re.sub(r'[^a-z0-9]', '', ad)
+
+_liste = None
+def guncel_kanallar():
+    """tvplus'ın güncel kanal listesi: {normalize ad: [kanal no]} (bir kez çekilir)"""
+    global _liste
+    if _liste is None:
+        _liste = {}
+        try:
+            cevap = istek('AllChannel', {'properties': [{'name': 'logicalChannel', 'include': '/channellist/logicalChannel/contentId,/channellist/logicalChannel/name'}],
+                                        'metaDataVer': 'Channel/1.1', 'channelNamespace': '2',
+                                        'filterlist': [{'key': 'IsHide', 'value': '-1'}], 'returnSatChannel': 0})
+            def topla(o):
+                if isinstance(o, dict):
+                    ad, no = o.get('name'), o.get('contentId') or o.get('id')
+                    if ad and no:
+                        _liste.setdefault(norm(ad), set()).add(str(no))
+                    for v in o.values(): topla(v)
+                elif isinstance(o, list):
+                    for v in o: topla(v)
+            topla(cevap)
+        except Exception as e:
+            print(f'tvplus kanal listesi alinamadi: {str(e)[:100]}')
+    return _liste
+
 def main():
     oturum()
     bugun = datetime.now(TZ).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
     bitis = bugun + timedelta(days=GUN)
     kok = ET.Element('tv', {'generator-info-name': 'epgdeposu-tvplus'})
     programlar, dolu, bos, hatali = [], 0, 0, 0
+    bos_adlar, duzeltilen = [], []
     gorulen = set()
     for c in kanallar:
         xid, sid = c.get('xmltv_id'), c.get('site_id')
         if xid in gorulen:
             continue
         try:
-            # Servis tek cevapta aralığın bir kısmını verebilir: son programın bitişinden devam et
-            pl, bas = [], bugun
-            for _ in range(GUN + 2):
-                parca = kanal_programlari(sid, bas, bitis)
-                if not parca:
-                    break
-                pl += parca
-                son_bitis = max((zaman(p.get('endtime', '')) or datetime.min) for p in parca) + timedelta(hours=3)  # yerel saat
-                if son_bitis <= bas or son_bitis >= bitis:
-                    break
-                bas = son_bitis
-                time.sleep(BEKLE)
+            ogeler = kanal_ogeleri(xid, sid, bugun, bitis)
+            if not ogeler:   # numara değişmiş olabilir: güncel listede aynı adı ara
+                adaylar = guncel_kanallar().get(norm(c.text), set()) - {sid}
+                for yeni in sorted(adaylar):
+                    time.sleep(BEKLE)
+                    ogeler = kanal_ogeleri(xid, yeni, bugun, bitis)
+                    if ogeler:
+                        duzeltilen.append(f'{c.text} ({sid}->{yeni})'); break
         except Exception as e:
             print(f'{xid}: hata ({str(e)[:100]})'); hatali += 1
             time.sleep(BEKLE); continue
-        ogeler, anahtarlar = [], set()
-        for p in pl:
-            o = program_ogesi(xid, p)
-            if o and o[1].get('start') not in anahtarlar:
-                anahtarlar.add(o[1].get('start')); ogeler.append(o)
         if ogeler:
             gorulen.add(xid); dolu += 1
             k = ET.SubElement(kok, 'channel', {'id': xid})
             ET.SubElement(k, 'display-name', {'lang': 'tr'}).text = c.text
             programlar += [e for _, e in sorted(ogeler, key=lambda x: x[0])]
         else:
-            bos += 1
+            bos += 1; bos_adlar.append(c.text)
         time.sleep(BEKLE)
     for e in programlar:
         kok.append(e)
@@ -143,6 +183,9 @@ def main():
             f'{len(programlar)} program ({ayrintili} tanesinde yonetmen/oyuncu bilgisi)')
     print(ozet)
     print('::notice::' + ozet)
+    print('::notice::tvplus bos kanallar: ' + (', '.join(bos_adlar) or 'yok'))
+    if duzeltilen:
+        print('::notice::tvplus numarasi kendiliginden duzeltilen (channels.xml guncellenmeli): ' + ', '.join(duzeltilen))
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as f:
             f.write(f'- {ozet}\n')
