@@ -561,4 +561,5 @@
   <channel site="logo" lang="tr" xmltv_id="SToon.tr" site_id="-">S Toon</channel>
   <channel site="logo" lang="tr" xmltv_id="KralPopTV.tr" site_id="-">Kral Pop TV</channel>
   <channel site="logo" lang="tr" xmltv_id="NR1Dance.tr" site_id="-">NR1 Dance</channel>
+  <channel site="dsmart.com.tr" lang="tr" xmltv_id="KozaTV.tr" site_id="6a4f7df8cfef0b02ec065211">Koza TV</channel>
 </channels>
