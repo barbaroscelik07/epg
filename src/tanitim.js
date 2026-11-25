@@ -144,7 +144,7 @@ const KANALLAR = `<div class="vitrin" role="img" aria-label="Popüler kanallar: 
 
 // acikKayit: ücretsiz dönem açık (kayıt onaysız açılır; ödeme ve onay adımları gösterilmez)
 export function anaSayfa(acikKayit = false) {
-  return html(uyeSablon(acikKayit ? "Türk kanalları için ücretsiz yayın akışı" : "Türk kanalları için yayın akışı", `${STIL}${UST("ana")}
+  return html(uyeSablon(acikKayit ? "Ücretsiz Türkçe EPG: Türk kanalları için yayın akışı" : "Türkçe EPG: Türk kanalları için yayın akışı", `${STIL}${UST("ana")}
 <main class="tn">
 <section class="kahraman">
 <div>
@@ -196,7 +196,10 @@ ${acikKayit ? `<div><h3>Adresini kopyala</h3><p>EPG adresin kayıttan hemen sonr
 
 <section class="cagri"><h2>Hazır mısın?</h2><p>${acikKayit ? "Üye ol, EPG adresin hemen panelinde." : "Üye ol, onaydan sonra EPG adresin panelinde seni bekliyor olacak."}</p><a href="/kayit">Üye ol</a></section>
 </main>
-${ALT}`));
+${ALT}`, {
+  adres: "https://epg.epgdeposu.workers.dev/",
+  aciklama: "TiviMate ve diğer IPTV uygulamaları için Türkçe EPG: ulusal, haber, spor, belgesel, çocuk ve sinema kanallarının program akışı, logoları ve açıklamalarıyla. Günde 2 kez güncellenir.",
+}));
 }
 
 // Uygulama başına kurulum adımları. dogrulandi: bu adımları kendimiz denedik ya da uygulamanın resmi belgesinde yazıyor.
@@ -260,7 +263,7 @@ export function kurulumSayfasi() {
 <p class="kaynak">${u.not}${u.kaynak ? ` Kaynak: <a href="${u.kaynak}" target="_blank" rel="noopener">${u.kaynak.replace(/^https:\/\//, "")}</a>` : ""}</p></div>
 </details>`).join("\n");
 
-  return html(uyeSablon("Kurulum rehberi", `${STIL}${UST("kurulum")}
+  return html(uyeSablon("EPG kurulum rehberi: TiviMate ve IPTV uygulamaları", `${STIL}${UST("kurulum")}
 <main class="rehber">
 <h1>Kurulum rehberi</h1>
 <p>EPG adresin panelinde, <b>“EPG adresin”</b> kartında yazıyor. Aşağıdan kullandığın uygulamayı seç.</p>
@@ -278,5 +281,8 @@ ${bolumler}
 <a class="dugme ikincil" href="/panel" style="text-decoration:none">Panele git</a>
 </section>
 </main>
-${ALT}`));
+${ALT}`, {
+  adres: "https://epg.epgdeposu.workers.dev/kurulum",
+  aciklama: "TiviMate, OTT Navigator ve diğer IPTV uygulamalarına EPG adresi nasıl eklenir? Adım adım Türkçe kurulum rehberi.",
+}));
 }

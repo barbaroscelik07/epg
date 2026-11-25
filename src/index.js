@@ -34,6 +34,8 @@ export default {
       return epg(env, (m[2] || "").endsWith(".xml") ? "xml" : "gz");
     }
 
+    if (yol === "/robots.txt") return new Response("User-agent: *\nAllow: /\nDisallow: /panel\nDisallow: /yonetim\nDisallow: /kayit\nDisallow: /giris\n\nSitemap: https://epg.epgdeposu.workers.dev/sitemap.xml\n", { headers: { "content-type": "text/plain; charset=utf-8" } });
+    if (yol === "/sitemap.xml") return new Response('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://epg.epgdeposu.workers.dev/</loc></url><url><loc>https://epg.epgdeposu.workers.dev/kurulum</loc></url></urlset>\n', { headers: { "content-type": "application/xml; charset=utf-8" } });
     if (yol === "/" && request.method === "GET") return anaSayfa(await ucretsizAcik(env));
     if ((yol === "/kurulum" || yol === "/kurulum/") && request.method === "GET") return kurulumSayfasi();
 

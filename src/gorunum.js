@@ -160,11 +160,21 @@ document.addEventListener('click',function(e){var m=document.querySelector('deta
 function filtre(b){document.querySelectorAll('.filtre button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});suz()}
 </script>`;
 
-export function uyeSablon(baslik, govde) {
+// Google Search Console doğrulama kodu (meta etiketi içindeki content değeri); boşsa etiket eklenmez
+const GOOGLE_KOD = "";
+
+export function uyeSablon(baslik, govde, seo = null) {
+  const meta = seo ? `<meta name="description" content="${kac(seo.aciklama)}">
+<link rel="canonical" href="${seo.adres}">
+<meta property="og:type" content="website"><meta property="og:locale" content="tr_TR"><meta property="og:site_name" content="EPG Deposu">
+<meta property="og:title" content="${kac(baslik)} · EPG Deposu"><meta property="og:description" content="${kac(seo.aciklama)}"><meta property="og:url" content="${seo.adres}">
+<meta name="twitter:card" content="summary">
+${GOOGLE_KOD ? `<meta name="google-site-verification" content="${GOOGLE_KOD}">` : ""}` : "";
   return `<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>${kac(baslik)} · EPG Deposu</title>
+${meta}
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
 <style>${STIL}</style></head><body>
