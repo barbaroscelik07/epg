@@ -161,7 +161,7 @@ function filtre(b){document.querySelectorAll('.filtre button').forEach(function(
 </script>`;
 
 // Google Search Console doğrulama kodu (meta etiketi içindeki content değeri); boşsa etiket eklenmez
-const GOOGLE_KOD = "";
+const GOOGLE_KOD = "2f1kq_oQojrTq4sPtfN2YjHvWGSAutOu2bQJnnFptBI";
 
 export function uyeSablon(baslik, govde, seo = null) {
   const meta = seo ? `<meta name="description" content="${kac(seo.aciklama)}">
