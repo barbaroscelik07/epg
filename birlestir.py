@@ -105,7 +105,7 @@ aciklama_eklenen = aciklama_uzatilan = 0
 for x, s in secim.items():
     havuz = collections.defaultdict(list)   # dakika -> [(ad, açıklama)] — diğer kaynaklardan
     for diger in veri:
-        if diger == s or diger in YEDEK:   # yedek kaynak açıklama havuzuna girmez
+        if diger == s or diger in YEDEK or diger in YABANCI:   # yedek ve yabancı kaynaklar açıklama havuzuna girmez (yabancı dilde açıklama gelebiliyor)
             continue
         for p in veri[diger]['programs'].get(x, []):
             ac = (p.findtext('desc') or '').strip()
